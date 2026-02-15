@@ -1,0 +1,135 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --color-warm: var(--warm);
+  --color-warm-foreground: var(--warm-foreground);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+}
+
+/* Warm Mem Theme - Light only (single-user tool) */
+:root {
+  --radius: 0.75rem;
+  --background: #FFFFFF;
+  --foreground: #3D2E24;
+  --card: #FFFFFF;
+  --card-foreground: #3D2E24;
+  --popover: #FFFFFF;
+  --popover-foreground: #3D2E24;
+  --primary: #E8825F;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F5E6D8;
+  --secondary-foreground: #3D2E24;
+  --muted: #F0E7DE;
+  --muted-foreground: #8B7565;
+  --accent: #D4956B;
+  --accent-foreground: #FFFFFF;
+  --destructive: #DC4446;
+  --border: #E8DDD4;
+  --input: #E8DDD4;
+  --ring: #E8825F;
+  --warm: #FFF2EA;
+  --warm-foreground: #6B4F3E;
+  --chart-1: #E8825F;
+  --chart-2: #D4956B;
+  --chart-3: #C4A882;
+  --chart-4: #8FB8A0;
+  --chart-5: #6BA3C4;
+  --sidebar: #F4F4F5;
+  --sidebar-foreground: #3D2E24;
+  --sidebar-primary: #E8825F;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #F5E6D8;
+  --sidebar-accent-foreground: #3D2E24;
+  --sidebar-border: #E8DDD4;
+  --sidebar-ring: #E8825F;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* FullCalendar Warm Mem overrides */
+.fc {
+  --fc-border-color: var(--border);
+  --fc-button-bg-color: var(--primary);
+  --fc-button-border-color: var(--primary);
+  --fc-button-hover-bg-color: #D6714E;
+  --fc-button-hover-border-color: #D6714E;
+  --fc-button-active-bg-color: #C4613E;
+  --fc-button-active-border-color: #C4613E;
+  --fc-today-bg-color: var(--warm);
+  --fc-event-bg-color: var(--primary);
+  --fc-event-border-color: var(--primary);
+  --fc-page-bg-color: var(--background);
+}
+
+.fc .fc-button {
+  border-radius: 0.5rem;
+  font-weight: 500;
+  font-size: 0.875rem;
+  padding: 0.375rem 0.75rem;
+}
+
+.fc .fc-daygrid-day {
+  border-radius: 0.5rem;
+}
+
+.fc .fc-event {
+  border-radius: 0.5rem;
+  padding: 2px 4px;
+  font-size: 0.75rem;
+}
+
+.fc .fc-toolbar-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--foreground);
+}
