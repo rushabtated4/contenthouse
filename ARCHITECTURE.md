@@ -47,7 +47,9 @@ contenthouse/
 │   │   │   ├── generated/page.tsx    # Generated carousels with filters/pagination
 │   │   │   ├── calendar/page.tsx     # Calendar + list view with posted tracking
 │   │   │   └── accounts/page.tsx     # Project accounts list
+│   │   ├── login/page.tsx            # Login page (password gate)
 │   │   └── api/
+│   │       ├── auth/login/route.ts   # POST: Password authentication
 │   │       ├── tiktok/route.ts       # POST: Fetch TikTok carousel
 │   │       ├── videos/route.ts       # GET: List all videos
 │   │       ├── videos/[id]/route.ts  # GET: Single video with sets

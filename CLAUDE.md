@@ -89,6 +89,7 @@ See `docs/DATABASE.md` for full schema.
 
 | Endpoint | Method | Purpose |
 |---|---|---|
+| `/api/auth/login` | POST | Password authentication (sets cookie) |
 | `/api/tiktok` | POST | Fetch TikTok carousel & store originals |
 | `/api/videos` | GET | List all videos with generation counts |
 | `/api/videos/[id]` | GET | Single video with nested sets & images |

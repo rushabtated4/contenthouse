@@ -541,6 +541,31 @@ List TikTok channels for scheduling, with nested project info.
 
 ---
 
+## POST /api/auth/login
+
+Simple password authentication.
+
+**File:** `src/app/api/auth/login/route.ts`
+
+**Request:**
+```json
+{
+  "password": "string"
+}
+```
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+Sets `ch_auth` httpOnly cookie (30-day expiry, secure in production, sameSite: lax).
+
+**Errors:**
+- `401` — Invalid password
+
+---
+
 ## Error Format
 
 All API errors follow this shape:

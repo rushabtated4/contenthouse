@@ -7,6 +7,7 @@
 ```
 RootLayout (src/app/layout.tsx)
 ├── TooltipProvider
+├── /login → LoginPage (login/page.tsx)  [password gate]
 ├── (app)/layout.tsx → AppShell (layout/app-shell.tsx)  [persists across pages]
 │   ├── SidebarProvider
 │   │   ├── AppSidebar (layout/app-sidebar.tsx)
@@ -70,6 +71,16 @@ RootLayout (src/app/layout.tsx)
     └── Project sections (color dot, name, account count)
         └── Account cards (user icon, @username, nickname, added date)
 ```
+
+---
+
+## Auth Components
+
+### LoginPage
+**File:** `src/app/login/page.tsx`
+**Props:** none (page component)
+**State:** `password`, `error`, `loading`
+Client component with password input form. Uses Card, Input, Button from shadcn/ui. Lock icon header. Brown/beige color scheme matching app theme. On success, redirects to `/dashboard`. Calls `POST /api/auth/login`.
 
 ---
 
