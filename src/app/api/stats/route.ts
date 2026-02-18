@@ -13,6 +13,8 @@ export async function GET() {
       postedSetsRes,
       allSetsLightRes,
       accountsRes,
+      totalVideosRes,
+      totalImagesRes,
     ] = await Promise.all([
       supabase
         .from("generation_sets")
@@ -44,6 +46,12 @@ export async function GET() {
       supabase
         .from("project_accounts")
         .select("id, username, nickname"),
+      supabase
+        .from("videos")
+        .select("*", { count: "exact", head: true }),
+      supabase
+        .from("generated_images")
+        .select("*", { count: "exact", head: true }),
     ]);
 
     // Aggregate per-account stats in JS
@@ -80,12 +88,19 @@ export async function GET() {
         ...accountMap.get(a.id)!,
       }));
 
+    const totalImages = totalImagesRes.count || 0;
+    // gpt-image-1: ~$0.04 per 1024x1024 image at low quality
+    const estimatedCost = totalImages * 0.04;
+
     return NextResponse.json({
       totalSets: totalSetsRes.count || 0,
       completedSets: completedSetsRes.count || 0,
       pendingSets: pendingSetsRes.count || 0,
       unscheduledSets: unscheduledSetsRes.count || 0,
       postedSets: postedSetsRes.count || 0,
+      totalVideos: totalVideosRes.count || 0,
+      totalImages,
+      estimatedCost,
       accountStats,
     });
   } catch (err) {

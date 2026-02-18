@@ -52,6 +52,9 @@ export interface StatsResponse {
   pendingSets: number;
   unscheduledSets: number;
   postedSets: number;
+  totalVideos: number;
+  totalImages: number;
+  estimatedCost: number;
   accountStats: AccountStat[];
 }
 
