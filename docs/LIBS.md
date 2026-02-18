@@ -278,3 +278,19 @@ const fetcher: (url: string) => Promise<any>
 ```
 
 **Dependency:** `swr` (installed as a project dependency)
+
+---
+
+## hooks/use-prompt-history.ts
+
+Client-side localStorage hook for persisting and retrieving saved prompt strings.
+
+```typescript
+const { history, savePrompt, deletePrompt } = usePromptHistory();
+
+// history: string[]          — ordered newest-first, max 30 entries
+// savePrompt(prompt: string) — saves if trimmed length >= 8; deduplicates
+// deletePrompt(prompt: string) — removes from history
+```
+
+Storage key: `ch:prompt-history`. Used by `PromptTextarea`.

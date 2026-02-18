@@ -91,16 +91,19 @@ See `docs/DATABASE.md` for full schema.
 |---|---|---|
 | `/api/auth/login` | POST | Password authentication (sets cookie) |
 | `/api/tiktok` | POST | Fetch TikTok carousel & store originals |
-| `/api/videos` | GET | List all videos with generation counts |
+| `/api/apps` | GET | List apps with nested accounts |
+| `/api/videos` | GET | List videos with filters, accounts, generation counts |
 | `/api/videos/[id]` | GET | Single video with nested sets & images |
 | `/api/generate` | POST | Create generation batch & queue processing |
 | `/api/generate/[imageId]/retry` | POST | Retry a single failed image |
 | `/api/images/[setId]/download` | GET | Download ZIP of completed set |
 | `/api/upload-post` | POST | Upload images directly to create scheduled post |
 | `/api/schedule` | GET/POST/PUT/PATCH/DELETE | CRUD scheduling + mark as posted |
-| `/api/generation-sets` | GET | List generation sets with filters/pagination |
+| `/api/generation-sets` | GET/DELETE | List generation sets; bulk delete by IDs or status |
+| `/api/generation-sets/[id]` | DELETE | Delete single generation set |
 | `/api/projects` | GET | List projects with nested accounts |
 | `/api/project-accounts` | GET | List TikTok channels with nested project |
+| `/api/overlays` | GET | List existing overlays from storage |
 | `/api/stats` | GET | Dashboard statistics (enhanced) |
 | `/api/queue` | POST | Batch processor (self-chaining) |
 

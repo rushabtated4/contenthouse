@@ -111,36 +111,39 @@ export function GenerationProgress({ batchId, error }: GenerationProgressProps) 
       {/* Per-set progress */}
       <div className="space-y-2">
         {sets.map((set) => (
-          <div key={set.id} className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground w-14">
-              Set {set.set_index + 1}
-            </span>
-            <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
-              <div
-                className={`h-1.5 rounded-full transition-all duration-300 ${
+          <div key={set.id} className="rounded-lg border border-border bg-card/50 p-2.5 space-y-2.5">
+            {/* Progress row */}
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-muted-foreground w-14">
+                Set {set.set_index + 1}
+              </span>
+              <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
+                <div
+                  className={`h-1.5 rounded-full transition-all duration-300 ${
+                    set.status === "failed"
+                      ? "bg-destructive"
+                      : set.status === "partial"
+                        ? "bg-accent"
+                        : "bg-primary"
+                  }`}
+                  style={{
+                    width: `${set.progress_total > 0 ? (set.progress_current / set.progress_total) * 100 : 0}%`,
+                  }}
+                />
+              </div>
+              <Badge
+                variant={
                   set.status === "failed"
-                    ? "bg-destructive"
+                    ? "destructive"
                     : set.status === "partial"
-                      ? "bg-accent"
-                      : "bg-primary"
-                }`}
-                style={{
-                  width: `${set.progress_total > 0 ? (set.progress_current / set.progress_total) * 100 : 0}%`,
-                }}
-              />
+                      ? "secondary"
+                      : "outline"
+                }
+                className="text-[10px] px-1.5 py-0"
+              >
+                {set.status}
+              </Badge>
             </div>
-            <Badge
-              variant={
-                set.status === "failed"
-                  ? "destructive"
-                  : set.status === "partial"
-                    ? "secondary"
-                    : "outline"
-              }
-              className="text-[10px] px-1.5 py-0"
-            >
-              {set.status}
-            </Badge>
           </div>
         ))}
       </div>

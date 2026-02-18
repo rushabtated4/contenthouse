@@ -58,15 +58,58 @@ Supported URL formats:
 
 ---
 
+## GET /api/apps
+
+List all apps with nested accounts.
+
+**File:** `src/app/api/apps/route.ts`
+
+**Response (200):**
+```json
+{
+  "apps": [
+    {
+      "id": "uuid",
+      "name": "App Name",
+      "color": "#E8825F",
+      "created_at": "ISO timestamp",
+      "accounts": [
+        {
+          "id": "uuid",
+          "username": "handle",
+          "nickname": "Display Name",
+          "app_id": "uuid",
+          "sec_uid": "string",
+          "sync_status": "string",
+          "last_video_count": 100,
+          "created_at": "ISO timestamp"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
 ## GET /api/videos
 
-List carousel videos with generation counts (paginated). Only returns videos where `original_images` is populated (i.e., actual carousels).
+List carousel videos with generation counts and account info (paginated). Only returns videos where `original_images` is populated (i.e., actual carousels).
 
 **File:** `src/app/api/videos/route.ts`
 
 **Query Params:**
 - `page` — Page number (default: 1)
 - `limit` — Results per page (default: 24, max: 50)
+- `app_id` — Filter by app (resolves to account IDs internally)
+- `account_id` — Filter by specific account
+- `search` — Search descriptions (ilike)
+- `min_views` — Minimum view count
+- `date_from` — Filter videos created after this ISO date
+- `date_to` — Filter videos created before this ISO date
+- `sort` — Sort order: `newest` (posted_at desc, default), `oldest` (posted_at asc), `most_views` (views desc)
+- `max_gen_count` — Exclusive upper bound on generation count (1=Fresh/0 gens, 2=<2 gens, 5=<5 gens)
+- `min_gen_count` — Inclusive lower bound on generation count (1=has at least 1 generation)
 
 **Response (200):**
 ```json
@@ -85,7 +128,13 @@ List carousel videos with generation counts (paginated). Only returns videos whe
       "posted_at": "ISO timestamp",
       "original_images": ["url1", "url2"],
       "created_at": "ISO timestamp",
-      "generation_count": 3
+      "generation_count": 3,
+      "account": {
+        "id": "uuid",
+        "username": "handle",
+        "nickname": "Display Name",
+        "app": { "id": "uuid", "name": "App Name", "color": "#E8825F" }
+      }
     }
   ],
   "total": 14706,
@@ -97,7 +146,11 @@ List carousel videos with generation counts (paginated). Only returns videos whe
 
 **Notes:**
 - `generation_count` is computed from `generation_sets` join
-- Ordered by `created_at` descending
+- `account` is joined from `accounts` table with nested `apps`
+- All filter params are optional — existing callers unaffected
+- Ordered by `sort` param: `newest`=`posted_at` desc (default), `oldest`=`posted_at` asc, `most_views`=`views` desc. Nulls last for all orderings.
+- `max_gen_count` filter: pre-queries `generation_sets` table, builds a count map in JS, excludes video IDs with count ≥ max_gen_count
+- `min_gen_count` filter: same pre-query, includes only video IDs with count ≥ min_gen_count; returns empty if no matches
 
 ---
 
@@ -193,8 +246,10 @@ Create generation batch and queue processing.
 **Flow:**
 1. Create `generation_sets` records (one per `numSets`)
 2. Create `generated_images` records for each selected slide in each set
-3. Fire async `POST /api/queue` for each set (fire-and-forget)
+3. Use `after()` (Next.js 15.1+) to run post-response: call `processBatch(set.id, 0)` directly; if `hasMore`, chain to `POST /api/queue` via HTTP for subsequent batches
 4. Return `batchId` for progress tracking
+
+**Note:** `after()` + direct `processBatch` for batch 0 replaces the old fire-and-forget `fetch()` — eliminates silent failures in local dev where self-referential HTTP calls could be dropped before the handler was invoked.
 
 ---
 
@@ -396,6 +451,11 @@ List generation sets with filtering and pagination.
         "url": "string",
         "description": "string",
         "original_images": ["url"]
+      },
+      "channel": {
+        "id": "account-uuid",
+        "username": "myaccount",
+        "nickname": "My Account"
       }
     }
   ],
@@ -408,6 +468,49 @@ List generation sets with filtering and pagination.
 
 ---
 
+## DELETE /api/generation-sets
+
+Bulk delete generation sets by IDs or by status.
+
+**File:** `src/app/api/generation-sets/route.ts`
+
+**Request (by IDs):**
+```json
+{ "ids": ["uuid1", "uuid2"] }
+```
+
+**Request (by status — partial or failed only):**
+```json
+{ "status": "failed" }
+```
+
+**Response (200):**
+```json
+{ "success": true, "deleted": 5 }
+```
+
+**Errors:**
+- `400` — Missing `ids` or invalid `status`
+- `500` — Database error
+
+---
+
+## DELETE /api/generation-sets/[id]
+
+Delete a single generation set and its images (cascade via FK).
+
+**File:** `src/app/api/generation-sets/[id]/route.ts`
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Errors:**
+- `500` — Database error
+
+---
+
 ## GET /api/stats
 
 Dashboard statistics.
@@ -417,35 +520,28 @@ Dashboard statistics.
 **Response (200):**
 ```json
 {
-  "totalVideos": 150,
   "totalSets": 450,
-  "totalImages": 3600,
-  "estimatedCost": 151.20,
   "completedSets": 400,
-  "failedSets": 10,
-  "scheduledSets": 50,
+  "pendingSets": 15,
+  "unscheduledSets": 85,
   "postedSets": 30,
-  "failedImages": 25,
-  "recentSets": [
+  "accountStats": [
     {
-      "id": "set-uuid",
-      "status": "completed",
-      "created_at": "ISO timestamp",
-      "video_description": "string",
-      "thumbnail_url": "https://storage.url/...",
-      "progress_current": 3,
-      "progress_total": 3,
-      "scheduled_at": null,
-      "posted_at": null
+      "id": "account-uuid",
+      "username": "myaccount",
+      "nickname": "My Account",
+      "totalSets": 50,
+      "completedSets": 45,
+      "scheduledSets": 10,
+      "postedSets": 5
     }
   ]
 }
 ```
 
-**Cost calculation** (per image by quality):
-- `low`: $0.011
-- `medium`: $0.042
-- `high`: $0.167
+- `pendingSets` — Sets with status `queued` or `processing`
+- `unscheduledSets` — Completed sets with no `scheduled_at` and no `posted_at`
+- `accountStats` — Only includes accounts that have at least one generation set assigned
 
 ---
 
@@ -528,6 +624,8 @@ List TikTok channels for scheduling, with nested project info.
     "username": "channel_name",
     "nickname": "Display Name",
     "added_at": "ISO timestamp",
+    "days_of_week": [1, 2, 3, 4, 5],
+    "posts_per_day": 1,
     "projects": {
       "id": "uuid",
       "name": "Project Name",
@@ -538,6 +636,30 @@ List TikTok channels for scheduling, with nested project info.
   }
 ]
 ```
+
+---
+
+## PATCH /api/project-accounts
+
+Update posting schedule config for an account.
+
+**File:** `src/app/api/project-accounts/route.ts`
+
+**Request:**
+```json
+{
+  "id": "uuid",
+  "days_of_week": [1, 2, 3, 4, 5],
+  "posts_per_day": 2
+}
+```
+
+`days_of_week` uses JS `Date.getDay()` convention: 0=Sun, 1=Mon … 6=Sat.
+
+**Response (200):** Updated `project_accounts` row.
+
+**Errors:**
+- `500` — DB update failure
 
 ---
 
@@ -563,6 +685,31 @@ Sets `ch_auth` httpOnly cookie (30-day expiry, secure in production, sameSite: l
 
 **Errors:**
 - `401` — Invalid password
+
+---
+
+## GET /api/overlays
+
+List all existing overlay images from the `overlays` storage bucket.
+
+**File:** `src/app/api/overlays/route.ts`
+
+**Response (200):**
+```json
+{
+  "overlays": [
+    {
+      "name": "uuid.png",
+      "url": "https://storage.supabase.co/.../overlays/uuid.png"
+    }
+  ]
+}
+```
+
+**Notes:**
+- Sorted by `created_at` descending (newest first)
+- Limited to 100 results
+- Filters out `.emptyFolderPlaceholder` entries
 
 ---
 

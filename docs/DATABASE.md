@@ -10,6 +10,7 @@
 - `supabase/migrations/003_videos_carousel_index.sql` — Partial index for carousel listing
 - `supabase/migrations/004_nullable_video_id.sql` — Make `video_id` nullable, add `title` column
 - `supabase/migrations/005_add_projects_table.sql` — Document `projects` table and `project_accounts` FK
+- `supabase/migrations/006_account_posting_schedule.sql` — Add `days_of_week`, `posts_per_day` to `project_accounts`
 
 ---
 
@@ -71,6 +72,8 @@ TikTok channels used for post scheduling, grouped by project.
 | `username` | text | NO | — | TikTok username (@handle) |
 | `nickname` | text | YES | — | Display name / nickname |
 | `added_at` | timestamptz | NO | `now()` | Record creation |
+| `days_of_week` | integer[] | YES | `'{1,2,3,4,5}'` | **Added (006).** JS `getDay()` convention: 0=Sun…6=Sat |
+| `posts_per_day` | integer | YES | `1` | **Added (006).** Number of posts per active day (1–5) |
 
 ---
 

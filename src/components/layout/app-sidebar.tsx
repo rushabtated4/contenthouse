@@ -5,7 +5,6 @@ import { usePathname } from "next/navigation";
 import {
   Gauge,
   GalleryHorizontalEnd,
-  Wand2,
   FolderCheck,
   CalendarDays,
   Users,
@@ -23,15 +22,14 @@ import {
 } from "@/components/ui/sidebar";
 
 const contentNav = [
-  { label: "Dashboard", href: "/dashboard", icon: Gauge },
-  { label: "Sources", href: "/videos", icon: GalleryHorizontalEnd },
-  { label: "Generate", href: "/generate", icon: Wand2 },
-  { label: "Generated", href: "/generated", icon: FolderCheck },
+  { label: "Dashboard", href: "/dashboard", icon: Gauge, description: "Overview of stats and recent activity" },
+  { label: "Viral Carousels", href: "/videos", icon: GalleryHorizontalEnd, description: "Browse viral TikTok carousels" },
+  { label: "Generated", href: "/generated", icon: FolderCheck, description: "View and download generated image sets" },
 ];
 
 const planNav = [
-  { label: "Calendar", href: "/calendar", icon: CalendarDays },
-  { label: "Accounts", href: "/accounts", icon: Users },
+  { label: "Calendar", href: "/calendar", icon: CalendarDays, description: "Schedule and manage upcoming posts" },
+  { label: "Accounts", href: "/accounts", icon: Users, description: "Manage TikTok accounts and projects" },
 ];
 
 export function AppSidebar() {
@@ -63,7 +61,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      tooltip={item.label}
+                      tooltip={item.description}
                     >
                       <Link href={item.href}>
                         <item.icon />
@@ -90,7 +88,7 @@ export function AppSidebar() {
                     <SidebarMenuButton
                       asChild
                       isActive={isActive}
-                      tooltip={item.label}
+                      tooltip={item.description}
                     >
                       <Link href={item.href}>
                         <item.icon />

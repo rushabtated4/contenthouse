@@ -10,6 +10,8 @@ interface SlideFilmstripProps {
   onToggleSlide: (index: number) => void;
   onPromptChange: (index: number, prompt: string) => void;
   onOverlayUpload: (index: number, file: File) => void;
+  onOverlaySelect: (index: number, url: string) => void;
+  onOverlayRemove: (index: number) => void;
 }
 
 export function SlideFilmstrip({
@@ -20,6 +22,8 @@ export function SlideFilmstrip({
   onToggleSlide,
   onPromptChange,
   onOverlayUpload,
+  onOverlaySelect,
+  onOverlayRemove,
 }: SlideFilmstripProps) {
   if (images.length === 0) return null;
 
@@ -37,6 +41,8 @@ export function SlideFilmstrip({
         onToggleSlide={onToggleSlide}
         onPromptChange={onPromptChange}
         onOverlayUpload={onOverlayUpload}
+        onOverlaySelect={onOverlaySelect}
+        onOverlayRemove={onOverlayRemove}
       />
     </div>
   );

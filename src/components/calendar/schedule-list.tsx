@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { CheckCircle, Undo2, Clock, Download } from "lucide-react";
 import { toast } from "sonner";
 import { useState } from "react";
+import { downloadSetAsZip, formatDateForFilename, sanitizeFilename } from "@/lib/client/download-zip";
 import {
   Tooltip,
   TooltipContent,
@@ -32,20 +33,16 @@ export function ScheduleList({ events, onRefetch }: ScheduleListProps) {
   const [loadingIds, setLoadingIds] = useState<Set<string>>(new Set());
   const [downloadingIds, setDownloadingIds] = useState<Set<string>>(new Set());
 
-  const handleDownload = async (setId: string) => {
+  const handleDownload = async (
+    setId: string,
+    channelLabel: string | null,
+    dateStr: string
+  ) => {
     setDownloadingIds((prev) => new Set(prev).add(setId));
     try {
-      const res = await fetch(`/api/images/${setId}/download`);
-      if (!res.ok) throw new Error("Download failed");
-      const blob = await res.blob();
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `carousel-${setId.slice(0, 8)}.zip`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const channel = sanitizeFilename(channelLabel ?? "channel");
+      const date = formatDateForFilename(dateStr);
+      await downloadSetAsZip(setId, `${channel}_${date}.zip`);
     } catch {
       toast.error("Failed to download ZIP");
     } finally {
@@ -145,7 +142,7 @@ export function ScheduleList({ events, onRefetch }: ScheduleListProps) {
                     variant="ghost"
                     className="h-7 w-7 p-0"
                     disabled={downloadingIds.has(event.extendedProps.setId)}
-                    onClick={() => handleDownload(event.extendedProps.setId)}
+                    onClick={() => handleDownload(event.extendedProps.setId, event.extendedProps.channelLabel, event.start)}
                   >
                     <Download className={`w-3.5 h-3.5 ${downloadingIds.has(event.extendedProps.setId) ? "animate-pulse" : ""}`} />
                   </Button>

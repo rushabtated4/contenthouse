@@ -1,5 +1,6 @@
 "use client";
 
+import { downloadSetAsZip } from "@/lib/client/download-zip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageThumbnail } from "@/components/shared/image-thumbnail";
@@ -16,8 +17,8 @@ interface OutputDisplayProps {
 export function OutputDisplay({ sets, onRetryImage }: OutputDisplayProps) {
   if (sets.length === 0) return null;
 
-  const handleDownload = async (setId: string) => {
-    window.open(`/api/images/${setId}/download`, "_blank");
+  const handleDownload = (setId: string) => {
+    downloadSetAsZip(setId, `carousel_${setId.slice(0, 8)}.zip`);
   };
 
   return (

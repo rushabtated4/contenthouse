@@ -10,6 +10,7 @@ import { GeneratePageSkeleton } from "@/components/shared/loading-skeleton";
 import { ErrorState } from "@/components/shared/error-state";
 import { useVideo } from "@/hooks/use-video";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import {
   DEFAULT_FIRST_SLIDE_PROMPT,
   DEFAULT_OTHER_SLIDES_PROMPT,
@@ -40,6 +41,7 @@ export default function GenerateDetailPage({
   const [isGenerating, setIsGenerating] = useState(false);
   const [batchId, setBatchId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
 
   if (video && !initialized) {
@@ -93,13 +95,20 @@ export default function GenerateDetailPage({
   };
 
   const handleRetryImage = async (imageId: string) => {
+    setRetryingId(imageId);
     try {
       const res = await fetch(`/api/generate/${imageId}/retry`, { method: "POST" });
-      if (!res.ok) throw new Error("Retry failed");
-      toast.success("Retrying image...");
-      setTimeout(() => refetch(), 3000);
-    } catch {
-      toast.error("Retry failed");
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Retry failed");
+      }
+      toast.success("Image regenerated!");
+      await refetch();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Retry failed");
+      await refetch();
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -113,9 +122,26 @@ export default function GenerateDetailPage({
   };
 
   const handleOverlayUpload = async (index: number, file: File) => {
-    const url = URL.createObjectURL(file);
+    const supabase = createClient();
+    const ext = file.name.split(".").pop() || "png";
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("overlays").upload(path, file, { upsert: false });
+    if (error) {
+      toast.error("Failed to upload overlay");
+      return;
+    }
+    const { data: { publicUrl } } = supabase.storage.from("overlays").getPublicUrl(path);
+    setPerSlideOverlays((prev) => ({ ...prev, [index]: publicUrl }));
+    toast.success(`Overlay added to slide ${index + 1}`);
+  };
+
+  const handleOverlaySelect = (index: number, url: string) => {
     setPerSlideOverlays((prev) => ({ ...prev, [index]: url }));
     toast.success(`Overlay added to slide ${index + 1}`);
+  };
+
+  const handleOverlayRemove = (index: number) => {
+    setPerSlideOverlays((prev) => ({ ...prev, [index]: null }));
   };
 
   if (loading) {
@@ -141,6 +167,8 @@ export default function GenerateDetailPage({
             setPerSlidePrompts((prev) => ({ ...prev, [i]: p }))
           }
           onOverlayUpload={handleOverlayUpload}
+          onOverlaySelect={handleOverlaySelect}
+          onOverlayRemove={handleOverlayRemove}
         />
       ) : (
         <p className="text-sm text-muted-foreground">No original slides</p>
@@ -170,6 +198,7 @@ export default function GenerateDetailPage({
         sets={video.generation_sets || []}
         originalImages={video.original_images || []}
         onRetryImage={handleRetryImage}
+        retryingId={retryingId}
       />
     </div>
   );

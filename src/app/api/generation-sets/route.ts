@@ -1,6 +1,39 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 
+export async function DELETE(request: NextRequest) {
+  try {
+    const supabase = createServerClient();
+    const body = await request.json();
+
+    // Bulk delete by IDs
+    if (body.ids && Array.isArray(body.ids) && body.ids.length > 0) {
+      const { error } = await supabase
+        .from("generation_sets")
+        .delete()
+        .in("id", body.ids);
+      if (error) throw error;
+      return NextResponse.json({ success: true, deleted: body.ids.length });
+    }
+
+    // Delete all by status
+    if (body.status && ["partial", "failed"].includes(body.status)) {
+      const { data, error } = await supabase
+        .from("generation_sets")
+        .delete()
+        .eq("status", body.status)
+        .select("id");
+      if (error) throw error;
+      return NextResponse.json({ success: true, deleted: data?.length || 0 });
+    }
+
+    return NextResponse.json({ error: "Provide ids[] or status" }, { status: 400 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
@@ -8,6 +41,7 @@ export async function GET(request: NextRequest) {
 
     const status = searchParams.get("status") || "all";
     const scheduled = searchParams.get("scheduled");
+    const unscheduled = searchParams.get("unscheduled");
     const sort = searchParams.get("sort") || "newest";
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = Math.min(parseInt(searchParams.get("limit") || "20", 10), 50);
@@ -19,7 +53,8 @@ export async function GET(request: NextRequest) {
         `
         *,
         generated_images(*),
-        videos:video_id(id, url, description, original_images)
+        videos:video_id(id, url, description, original_images),
+        channel:channel_id(id, username, nickname)
       `,
         { count: "exact" }
       );
@@ -32,7 +67,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    if (scheduled === "false") {
+    if (scheduled === "false" || unscheduled === "true") {
       query = query.is("scheduled_at", null);
     } else if (scheduled === "true") {
       query = query.not("scheduled_at", "is", null);

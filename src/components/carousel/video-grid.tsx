@@ -1,66 +1,243 @@
 "use client";
 
+import { useState, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { VideoCard } from "./video-card";
+import { AppTabs } from "./app-tabs";
+import { VideoFilterBar } from "./video-filter-bar";
 import { VideoGridSkeleton } from "@/components/shared/loading-skeleton";
 import { EmptyState } from "@/components/shared/empty-state";
 import { ErrorState } from "@/components/shared/error-state";
 import { Button } from "@/components/ui/button";
-import { Loader2 } from "lucide-react";
-import Link from "next/link";
-import { useVideos } from "@/hooks/use-videos";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { UrlInput } from "@/components/generate/url-input";
+import { Loader2, Wand2 } from "lucide-react";
+import { useVideos, type VideoFilters } from "@/hooks/use-videos";
+import { useApps } from "@/hooks/use-apps";
+import type { Account } from "@/types/database";
 
 export function VideoGrid() {
-  const { videos, total, hasMore, loading, loadingMore, error, loadMore, refetch } =
-    useVideos({ limit: 24 });
+  const router = useRouter();
+  const [dialogOpen, setDialogOpen] = useState(false);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
-  if (loading) return <VideoGridSkeleton />;
+  // Filter state
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [minViews, setMinViews] = useState("5000");
+  const [accountId, setAccountId] = useState("all");
+  const [dateRange, setDateRange] = useState("any");
+  const [sort, setSort] = useState("newest");
+  const [maxGenCount, setMaxGenCount] = useState("any");
+
+  const { apps, loading: appsLoading } = useApps();
+
+  // Compute date filters
+  const dateFilters = useMemo(() => {
+    if (dateRange === "any") return { dateFrom: null, dateTo: null };
+    const days = parseInt(dateRange, 10);
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    return { dateFrom: from.toISOString(), dateTo: null };
+  }, [dateRange]);
+
+  const filters: VideoFilters = useMemo(
+    () => ({
+      appId: selectedAppId,
+      accountId: accountId !== "all" ? accountId : null,
+      search: search || undefined,
+      minViews: minViews !== "any" ? parseInt(minViews, 10) : null,
+      dateFrom: dateFilters.dateFrom,
+      dateTo: dateFilters.dateTo,
+      sort,
+      maxGenCount: maxGenCount !== "any" && maxGenCount !== "has" ? parseInt(maxGenCount, 10) : null,
+      minGenCount: maxGenCount === "has" ? 1 : null,
+    }),
+    [selectedAppId, accountId, search, minViews, dateFilters, sort, maxGenCount]
+  );
+
+  const {
+    videos,
+    total,
+    hasMore,
+    loading,
+    loadingMore,
+    error,
+    loadMore,
+    refetch,
+    resetPages,
+  } = useVideos({ limit: 24, filters });
+
+  // Available accounts based on selected app
+  const availableAccounts: Account[] = useMemo(() => {
+    if (!selectedAppId) {
+      return apps.flatMap((app) => app.accounts || []);
+    }
+    const selectedApp = apps.find((a) => a.id === selectedAppId);
+    return selectedApp?.accounts || [];
+  }, [apps, selectedAppId]);
+
+  // Handle app tab change
+  const handleAppSelect = useCallback(
+    (appId: string | null) => {
+      setSelectedAppId(appId);
+      // Reset account filter if current account doesn't belong to new app
+      if (appId && accountId !== "all") {
+        const app = apps.find((a) => a.id === appId);
+        const accountBelongs = app?.accounts?.some((a) => a.id === accountId);
+        if (!accountBelongs) setAccountId("all");
+      }
+      resetPages();
+    },
+    [accountId, apps, resetPages]
+  );
+
+  const handleSearchChange = useCallback(
+    (val: string) => {
+      setSearch(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
+  const handleMinViewsChange = useCallback(
+    (val: string) => {
+      setMinViews(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
+  const handleAccountIdChange = useCallback(
+    (val: string) => {
+      setAccountId(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
+  const handleDateRangeChange = useCallback(
+    (val: string) => {
+      setDateRange(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
+  const handleSortChange = useCallback(
+    (val: string) => {
+      setSort(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
+  const handleMaxGenCountChange = useCallback(
+    (val: string) => {
+      setMaxGenCount(val);
+      resetPages();
+    },
+    [resetPages]
+  );
+
   if (error) return <ErrorState message={error} onRetry={refetch} />;
-  if (videos.length === 0) {
-    return (
-      <EmptyState
-        title="No carousels yet"
-        description="Paste a TikTok carousel URL in the Generate tab to get started."
-        action={
-          <Link href="/generate">
-            <Button>Go to Generate</Button>
-          </Link>
-        }
-      />
-    );
-  }
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Sources</h1>
-        <p className="text-sm text-muted-foreground mt-0.5">
-          {total} carousels
-        </p>
-      </div>
-
-      <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
-        {videos.map((video) => (
-          <VideoCard key={video.id} video={video} />
-        ))}
-      </div>
-
-      {hasMore && (
-        <div className="flex justify-center pt-2">
-          <Button
-            variant="outline"
-            disabled={loadingMore}
-            onClick={loadMore}
-          >
-            {loadingMore ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Loading...
-              </>
-            ) : (
-              `Load more (${videos.length} of ${total})`
-            )}
-          </Button>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Viral Carousels</h1>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Browse and replicate viral TikTok carousels
+          </p>
         </div>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setFetchError(null); }}>
+          <DialogTrigger asChild>
+            <Button className="gap-2 shrink-0">
+              <Wand2 className="w-4 h-4" />
+              Generate with TikTok URL
+            </Button>
+          </DialogTrigger>
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle>Fetch TikTok Carousel</DialogTitle>
+            </DialogHeader>
+            <UrlInput
+              onFetch={({ video }) => {
+                setDialogOpen(false);
+                router.push(`/generate/${(video as { id: string }).id}`);
+              }}
+              onError={(err) => setFetchError(err)}
+            />
+            {fetchError && (
+              <p className="text-xs text-destructive mt-2">{fetchError}</p>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+
+      {/* App tabs */}
+      <AppTabs
+        apps={apps}
+        selectedAppId={selectedAppId}
+        onSelect={handleAppSelect}
+        loading={appsLoading}
+      />
+
+      {/* Filter bar */}
+      <VideoFilterBar
+        search={search}
+        onSearchChange={handleSearchChange}
+        minViews={minViews}
+        onMinViewsChange={handleMinViewsChange}
+        accountId={accountId}
+        onAccountIdChange={handleAccountIdChange}
+        dateRange={dateRange}
+        onDateRangeChange={handleDateRangeChange}
+        sort={sort}
+        onSortChange={handleSortChange}
+        maxGenCount={maxGenCount}
+        onMaxGenCountChange={handleMaxGenCountChange}
+        accounts={availableAccounts}
+        loaded={videos.length}
+        total={total}
+      />
+
+      {/* Grid */}
+      {loading ? (
+        <VideoGridSkeleton />
+      ) : videos.length === 0 ? (
+        <EmptyState
+          title="No carousels found"
+          description="Try adjusting your filters or use the Generate button above to fetch a TikTok carousel."
+        />
+      ) : (
+        <>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
+            {videos.map((video) => (
+              <VideoCard key={video.id} video={video} />
+            ))}
+          </div>
+
+          {hasMore && (
+            <div className="flex justify-center pt-2">
+              <Button
+                variant="outline"
+                disabled={loadingMore}
+                onClick={() => loadMore()}
+              >
+                {loadingMore ? (
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    Loading...
+                  </>
+                ) : (
+                  `Load more (${videos.length} of ${total})`
+                )}
+              </Button>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

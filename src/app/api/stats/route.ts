@@ -6,79 +6,87 @@ export async function GET() {
     const supabase = createServerClient();
 
     const [
-      setsRes,
-      imagesRes,
+      totalSetsRes,
       completedSetsRes,
+      pendingSetsRes,
+      unscheduledSetsRes,
       postedSetsRes,
-      recentSetsRes,
+      allSetsLightRes,
+      accountsRes,
     ] = await Promise.all([
       supabase
         .from("generation_sets")
         .select("*", { count: "exact", head: true }),
       supabase
-        .from("generated_images")
+        .from("generation_sets")
         .select("*", { count: "exact", head: true })
         .eq("status", "completed"),
       supabase
         .from("generation_sets")
         .select("*", { count: "exact", head: true })
-        .eq("status", "completed"),
+        .in("status", ["queued", "processing"]),
+      // Completed sets with no schedule and not posted
+      supabase
+        .from("generation_sets")
+        .select("*", { count: "exact", head: true })
+        .eq("status", "completed")
+        .is("scheduled_at", null)
+        .is("posted_at", null),
       supabase
         .from("generation_sets")
         .select("*", { count: "exact", head: true })
         .not("posted_at", "is", null),
+      // Lightweight fetch for per-account aggregation
       supabase
         .from("generation_sets")
-        .select(`
-          id,
-          status,
-          created_at,
-          title,
-          progress_current,
-          progress_total,
-          scheduled_at,
-          posted_at,
-          videos:video_id(description),
-          generated_images(image_url, status, slide_index)
-        `)
-        .order("created_at", { ascending: false })
-        .limit(10),
+        .select("channel_id, status, scheduled_at, posted_at")
+        .not("channel_id", "is", null),
+      supabase
+        .from("project_accounts")
+        .select("id, username, nickname"),
     ]);
 
-    const totalSets = setsRes.count || 0;
-    const totalImages = imagesRes.count || 0;
+    // Aggregate per-account stats in JS
+    type AccountBucket = {
+      totalSets: number;
+      completedSets: number;
+      scheduledSets: number;
+      postedSets: number;
+    };
+    const accountMap = new Map<string, AccountBucket>();
+    for (const s of allSetsLightRes.data || []) {
+      if (!s.channel_id) continue;
+      if (!accountMap.has(s.channel_id)) {
+        accountMap.set(s.channel_id, {
+          totalSets: 0,
+          completedSets: 0,
+          scheduledSets: 0,
+          postedSets: 0,
+        });
+      }
+      const bucket = accountMap.get(s.channel_id)!;
+      bucket.totalSets++;
+      if (s.status === "completed") bucket.completedSets++;
+      if (s.scheduled_at) bucket.scheduledSets++;
+      if (s.posted_at) bucket.postedSets++;
+    }
 
-    const recentSets = (recentSetsRes.data || []).map((s: Record<string, unknown>) => {
-      const video = s.videos as Record<string, unknown> | null;
-      const images = (s.generated_images as Array<Record<string, unknown>>) || [];
-      const firstCompleted = images
-        .filter((i) => i.status === "completed" && i.image_url)
-        .sort((a, b) => (a.slide_index as number) - (b.slide_index as number))[0];
-
-      return {
-        id: s.id,
-        status: s.status,
-        created_at: s.created_at,
-        video_description: (s.title as string) || video?.description || null,
-        thumbnail_url: (firstCompleted?.image_url as string) || null,
-        progress_current: s.progress_current,
-        progress_total: s.progress_total,
-        scheduled_at: s.scheduled_at,
-        posted_at: s.posted_at,
-      };
-    });
+    const accountStats = (accountsRes.data || [])
+      .filter((a) => accountMap.has(a.id))
+      .map((a) => ({
+        id: a.id,
+        username: a.username,
+        nickname: a.nickname,
+        ...accountMap.get(a.id)!,
+      }));
 
     return NextResponse.json({
-      totalVideos: 0,
-      totalSets,
-      totalImages,
-      estimatedCost: 0,
+      totalSets: totalSetsRes.count || 0,
       completedSets: completedSetsRes.count || 0,
-      failedSets: 0,
-      scheduledSets: 0,
+      pendingSets: pendingSetsRes.count || 0,
+      unscheduledSets: unscheduledSetsRes.count || 0,
       postedSets: postedSetsRes.count || 0,
-      failedImages: 0,
-      recentSets,
+      accountStats,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

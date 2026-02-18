@@ -26,15 +26,23 @@ export async function createZipFromUrls(
 
     archive.pipe(passthrough);
 
-    for (const entry of entries) {
-      try {
-        const imageBuffer = await downloadImage(entry.url);
-        archive.append(imageBuffer, { name: entry.filename });
-      } catch (err) {
-        console.error(
-          `Failed to download ${entry.filename}:`,
-          err
-        );
+    // Download all images in parallel
+    const results = await Promise.all(
+      entries.map(async (entry) => {
+        try {
+          const buffer = await downloadImage(entry.url);
+          return { buffer, filename: entry.filename };
+        } catch (err) {
+          console.error(`Failed to download ${entry.filename}:`, err);
+          return null;
+        }
+      })
+    );
+
+    // Append in order (results preserve entry order)
+    for (const item of results) {
+      if (item) {
+        archive.append(item.buffer, { name: item.filename });
       }
     }
 

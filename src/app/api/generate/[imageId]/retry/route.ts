@@ -24,9 +24,9 @@ export async function POST(
       return NextResponse.json({ error: "Image not found" }, { status: 404 });
     }
 
-    if (image.status !== "failed") {
+    if (image.status !== "failed" && image.status !== "completed") {
       return NextResponse.json(
-        { error: "Can only retry failed images" },
+        { error: "Can only retry failed or completed images" },
         { status: 400 }
       );
     }

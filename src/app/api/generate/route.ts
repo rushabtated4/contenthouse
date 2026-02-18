@@ -1,7 +1,8 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
 import type { GenerateRequest } from "@/types/api";
+import { processBatch } from "@/lib/queue/processor";
 
 export async function POST(request: NextRequest) {
   try {
@@ -71,16 +72,23 @@ export async function POST(request: NextRequest) {
       sets.push(set);
     }
 
-    // Kick off queue processing for each set (fire-and-forget)
+    // Kick off queue processing for each set via after() + direct processBatch call
     const baseUrl = request.nextUrl.origin;
     for (const set of sets) {
-      fetch(`${baseUrl}/api/queue`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ setId: set.id, batchStart: 0 }),
-      }).catch((err) =>
-        console.error(`Failed to start queue for set ${set.id}:`, err)
-      );
+      after(async () => {
+        try {
+          const result = await processBatch(set.id, 0);
+          if (result.hasMore) {
+            await fetch(`${baseUrl}/api/queue`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ setId: set.id, batchStart: result.nextBatchStart }),
+            });
+          }
+        } catch (err) {
+          console.error(`Processing failed for set ${set.id}:`, err);
+        }
+      });
     }
 
     return NextResponse.json({ batchId, sets });

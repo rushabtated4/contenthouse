@@ -1,7 +1,7 @@
 "use client";
 
-import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { PromptTextarea } from "@/components/shared/prompt-textarea";
 import {
   Select,
   SelectContent,
@@ -48,7 +48,7 @@ export function GlobalControls({
   onGenerate,
 }: GlobalControlsProps) {
   return (
-    <div className="rounded-xl border border-border bg-card p-5 space-y-4">
+    <div className="rounded-xl border border-border bg-card p-4 space-y-3">
       <h3 className="text-sm font-medium text-foreground">
         Generation Settings
       </h3>
@@ -58,107 +58,110 @@ export function GlobalControls({
           <label className="text-xs text-muted-foreground mb-1.5 block">
             Default First Slide Prompt
           </label>
-          <Textarea
+          <PromptTextarea
             placeholder="Prompt for the first slide (hook/title)..."
             value={firstSlidePrompt}
-            onChange={(e) => onFirstPromptChange(e.target.value)}
-            className="min-h-[80px] text-sm"
+            onChange={onFirstPromptChange}
+            className="min-h-[72px] max-h-[120px] text-sm resize-none overflow-y-auto"
           />
         </div>
         <div>
           <label className="text-xs text-muted-foreground mb-1.5 block">
             Default Other Slides Prompt
           </label>
-          <Textarea
+          <PromptTextarea
             placeholder="Prompt for all other slides..."
             value={otherSlidesPrompt}
-            onChange={(e) => onOtherPromptChange(e.target.value)}
-            className="min-h-[80px] text-sm"
+            onChange={onOtherPromptChange}
+            className="min-h-[72px] max-h-[120px] text-sm resize-none overflow-y-auto"
           />
         </div>
       </div>
 
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <div>
-          <label className="text-xs text-muted-foreground mb-1.5 block">
-            Input Quality
-          </label>
-          <Select value={qualityInput} onValueChange={(v) => onQualityInputChange(v as "low" | "high")}>
-            <SelectTrigger className="text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </SelectContent>
-          </Select>
+      <div className="flex items-end gap-3">
+        {/* Settings — left side */}
+        <div className="flex items-end gap-3 flex-1 min-w-0">
+          <div className="min-w-0">
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Input Quality
+            </label>
+            <Select value={qualityInput} onValueChange={(v) => onQualityInputChange(v as "low" | "high")}>
+              <SelectTrigger className="text-sm w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-w-0">
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Output Quality
+            </label>
+            <Select value={qualityOutput} onValueChange={(v) => onQualityOutputChange(v as "low" | "medium" | "high")}>
+              <SelectTrigger className="text-sm w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="low">Low</SelectItem>
+                <SelectItem value="medium">Medium</SelectItem>
+                <SelectItem value="high">High</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="min-w-0">
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Output Format
+            </label>
+            <Select value={outputFormat} onValueChange={(v) => onOutputFormatChange(v as "png" | "jpeg" | "webp")}>
+              <SelectTrigger className="text-sm w-28">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="png">PNG</SelectItem>
+                <SelectItem value="jpeg">JPEG</SelectItem>
+                <SelectItem value="webp">WebP</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div className="w-20 shrink-0">
+            <label className="text-xs text-muted-foreground mb-1.5 block">
+              Sets
+            </label>
+            <Input
+              type="number"
+              min={1}
+              max={20}
+              value={numSets}
+              onChange={(e) => onNumSetsChange(parseInt(e.target.value) || 1)}
+              className="text-sm"
+            />
+          </div>
         </div>
 
-        <div>
-          <label className="text-xs text-muted-foreground mb-1.5 block">
-            Output Quality
-          </label>
-          <Select value={qualityOutput} onValueChange={(v) => onQualityOutputChange(v as "low" | "medium" | "high")}>
-            <SelectTrigger className="text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="low">Low</SelectItem>
-              <SelectItem value="medium">Medium</SelectItem>
-              <SelectItem value="high">High</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="text-xs text-muted-foreground mb-1.5 block">
-            Output Format
-          </label>
-          <Select value={outputFormat} onValueChange={(v) => onOutputFormatChange(v as "png" | "jpeg" | "webp")}>
-            <SelectTrigger className="text-sm">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="png">PNG</SelectItem>
-              <SelectItem value="jpeg">JPEG</SelectItem>
-              <SelectItem value="webp">WebP</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-
-        <div>
-          <label className="text-xs text-muted-foreground mb-1.5 block">
-            Number of Sets
-          </label>
-          <Input
-            type="number"
-            min={1}
-            max={20}
-            value={numSets}
-            onChange={(e) => onNumSetsChange(parseInt(e.target.value) || 1)}
-            className="text-sm"
-          />
-        </div>
+        {/* Generate button — right side */}
+        <Button
+          onClick={onGenerate}
+          disabled={!canGenerate || isGenerating}
+          className="rounded-xl h-10 text-sm gap-2 shrink-0 px-6"
+        >
+          {isGenerating ? (
+            <>
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Generating...
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Generate {numSets} Set{numSets > 1 ? "s" : ""}
+            </>
+          )}
+        </Button>
       </div>
-
-      <Button
-        onClick={onGenerate}
-        disabled={!canGenerate || isGenerating}
-        size="lg"
-        className="w-full rounded-xl h-12 text-base gap-2"
-      >
-        {isGenerating ? (
-          <>
-            <Loader2 className="w-5 h-5 animate-spin" />
-            Generating...
-          </>
-        ) : (
-          <>
-            <Sparkles className="w-5 h-5" />
-            Generate {numSets} Set{numSets > 1 ? "s" : ""}
-          </>
-        )}
-      </Button>
     </div>
   );
 }

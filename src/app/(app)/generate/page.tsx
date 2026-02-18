@@ -11,6 +11,7 @@ import { GenerationProgress } from "@/components/generate/generation-progress";
 import { ResultsSection } from "@/components/generate/results-section";
 import { ErrorState } from "@/components/shared/error-state";
 import { toast } from "sonner";
+import { createClient } from "@/lib/supabase/client";
 import type { Video, GenerationSetWithImages } from "@/types/database";
 import {
   DEFAULT_FIRST_SLIDE_PROMPT,
@@ -77,9 +78,26 @@ export default function GeneratePage() {
   };
 
   const handleOverlayUpload = async (index: number, file: File) => {
-    const url = URL.createObjectURL(file);
+    const supabase = createClient();
+    const ext = file.name.split(".").pop() || "png";
+    const path = `${crypto.randomUUID()}.${ext}`;
+    const { error } = await supabase.storage.from("overlays").upload(path, file, { upsert: false });
+    if (error) {
+      toast.error("Failed to upload overlay");
+      return;
+    }
+    const { data: { publicUrl } } = supabase.storage.from("overlays").getPublicUrl(path);
+    setPerSlideOverlays((prev) => ({ ...prev, [index]: publicUrl }));
+    toast.success(`Overlay added to slide ${index + 1}`);
+  };
+
+  const handleOverlaySelect = (index: number, url: string) => {
     setPerSlideOverlays((prev) => ({ ...prev, [index]: url }));
     toast.success(`Overlay added to slide ${index + 1}`);
+  };
+
+  const handleOverlayRemove = (index: number) => {
+    setPerSlideOverlays((prev) => ({ ...prev, [index]: null }));
   };
 
   const handleGenerate = async () => {
@@ -160,6 +178,8 @@ export default function GeneratePage() {
                 setPerSlidePrompts((prev) => ({ ...prev, [i]: p }))
               }
               onOverlayUpload={handleOverlayUpload}
+              onOverlaySelect={handleOverlaySelect}
+              onOverlayRemove={handleOverlayRemove}
             />
           ) : (
             <p className="text-sm text-muted-foreground">No original slides</p>

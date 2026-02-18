@@ -49,7 +49,7 @@ export function CalendarView() {
   } = useUnscheduledSets();
 
   const handleEventDrop = useCallback(
-    async (setId: string, newDate: string) => {
+    async (setId: string, newDate: string, channelId: string | null) => {
       try {
         const res = await fetch("/api/schedule", {
           method: "PUT",
@@ -57,6 +57,7 @@ export function CalendarView() {
           body: JSON.stringify({
             setId,
             scheduledAt: newDate,
+            channelId,
           }),
         });
 
@@ -97,8 +98,8 @@ export function CalendarView() {
   );
 
   const handleEventReceive = useCallback(
-    (setId: string, date: string) => {
-      handleScheduleSet(setId, date);
+    (setId: string, date: string, channelId: string | null) => {
+      handleScheduleSet(setId, date, channelId ?? undefined);
     },
     [handleScheduleSet]
   );

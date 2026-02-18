@@ -51,6 +51,8 @@ interface ProjectAccount {
   username: string;
   nickname: string | null;
   added_at: string;
+  days_of_week: number[] | null;
+  posts_per_day: number | null;
 }
 ```
 
@@ -69,6 +71,36 @@ interface ProjectWithAccounts extends Project {
   project_accounts: ProjectAccount[];
 }
 ```
+
+---
+
+## Hook Types — `src/hooks/use-account-overview.ts`
+
+### ScheduledSetSummary
+
+```typescript
+interface ScheduledSetSummary {
+  id: string;
+  channel_id: string | null;
+  scheduled_at: string | null;
+  posted_at: string | null;
+  title: string | null;
+  video_id: string | null;
+}
+```
+
+### PostingSlot
+
+```typescript
+type PostingSlot = {
+  date: Date;
+  slotIndex: number;          // 0-based within the day
+  set: ScheduledSetSummary | null;
+  status: "posted" | "scheduled" | "empty";
+};
+```
+
+---
 
 ### GenerationSet
 
@@ -110,6 +142,51 @@ interface GeneratedImage {
   status: "pending" | "generating" | "completed" | "failed";
   error_message: string | null;
   created_at: string;
+}
+```
+
+### App
+
+```typescript
+interface App {
+  id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+}
+```
+
+### Account
+
+```typescript
+interface Account {
+  id: string;
+  username: string;
+  nickname: string | null;
+  app_id: string;
+  sec_uid: string;
+  sync_status: string;
+  last_video_count: number | null;
+  created_at: string;
+}
+```
+
+### AppWithAccounts
+
+```typescript
+interface AppWithAccounts extends App {
+  accounts: Account[];
+}
+```
+
+### VideoAccount
+
+```typescript
+interface VideoAccount {
+  id: string;
+  username: string;
+  nickname: string | null;
+  app: { id: string; name: string; color: string | null } | null;
 }
 ```
 
@@ -180,29 +257,23 @@ interface GenerateResponse {
   sets: GenerationSet[];
 }
 
-interface RecentSet {
+interface AccountStat {
   id: string;
-  status: string;
-  created_at: string;
-  video_description: string | null;
-  thumbnail_url: string | null;
-  progress_current: number;
-  progress_total: number;
-  scheduled_at: string | null;
-  posted_at: string | null;
+  username: string;
+  nickname: string | null;
+  totalSets: number;
+  completedSets: number;
+  scheduledSets: number;
+  postedSets: number;
 }
 
 interface StatsResponse {
-  totalVideos: number;
   totalSets: number;
-  totalImages: number;
-  estimatedCost: number;
   completedSets: number;
-  failedSets: number;
-  scheduledSets: number;
+  pendingSets: number;
+  unscheduledSets: number;
   postedSets: number;
-  failedImages: number;
-  recentSets: RecentSet[];
+  accountStats: AccountStat[];
 }
 
 interface GenerationSetWithVideo {
@@ -224,6 +295,11 @@ interface GenerationSetWithVideo {
     url: string;
     description: string | null;
     original_images: string[] | null;
+  } | null;
+  channel: {
+    id: string;
+    username: string;
+    nickname: string | null;
   } | null;
 }
 
@@ -333,11 +409,35 @@ interface ScheduledEvent {
 }
 ```
 
-### useVideos
+### useApps
 
 ```typescript
 {
-  videos: (Video & { generation_count: number })[];
+  apps: AppWithAccounts[];
+  loading: boolean;
+  error: string | null;
+}
+```
+
+### useVideos
+
+```typescript
+// Filter options
+interface VideoFilters {
+  appId?: string | null;
+  accountId?: string | null;
+  search?: string;
+  minViews?: number | null;
+  dateFrom?: string | null;
+  dateTo?: string | null;
+  sort?: string;
+  maxGenCount?: number | null;  // exclusive upper bound: 1=Fresh, 2=<2, 5=<5
+  minGenCount?: number | null;  // inclusive lower bound: 1=has generations
+}
+
+// Return type
+{
+  videos: VideoWithCount[];  // Video & { generation_count: number; account: VideoAccount | null }
   total: number;
   hasMore: boolean;
   loading: boolean;
@@ -345,6 +445,7 @@ interface ScheduledEvent {
   error: string | null;
   loadMore: () => void;
   refetch: () => void;
+  resetPages: () => void;
 }
 ```
 

@@ -1,20 +1,21 @@
 "use client";
 
-import { useProjects } from "@/hooks/use-projects";
-import { Card, CardContent } from "@/components/ui/card";
+import { FolderOpen, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { User, FolderOpen } from "lucide-react";
+import { AccountScheduleCard } from "./account-schedule-card";
+import { useAccountOverview, computeSlots } from "@/hooks/use-account-overview";
 
 export function AccountList() {
-  const { projects, loading } = useProjects();
+  const { projects, scheduledSets, loading, mutate } = useAccountOverview();
 
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-6">
         <Skeleton className="h-8 w-48" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton className="h-6 w-72" />
+        <div className="space-y-4">
           {Array.from({ length: 3 }).map((_, i) => (
-            <Skeleton key={i} className="h-24 rounded-lg" />
+            <Skeleton key={i} className="h-48 rounded-lg" />
           ))}
         </div>
       </div>
@@ -26,27 +27,60 @@ export function AccountList() {
     0
   );
 
+  const allAccounts = projects.flatMap((p) => p.project_accounts);
+  const totalScheduled = scheduledSets.filter(
+    (s) => s.scheduled_at && !s.posted_at
+  ).length;
+  const totalEmpty = allAccounts.reduce((sum, a) => {
+    const slots = computeSlots(a, scheduledSets);
+    return sum + slots.filter((s) => s.status === "empty").length;
+  }, 0);
+  const accountsWithEmpty = allAccounts.filter((a) => {
+    const slots = computeSlots(a, scheduledSets);
+    return slots.some((s) => s.status === "empty");
+  }).length;
+
   return (
     <div className="space-y-6">
-      <h1 className="text-lg font-semibold">
-        Accounts{" "}
-        <span className="text-muted-foreground font-normal">
-          ({totalAccounts})
+      {/* Header */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <h1 className="text-lg font-semibold">
+          Accounts{" "}
+          <span className="text-muted-foreground font-normal">
+            ({totalAccounts})
+          </span>
+        </h1>
+        {accountsWithEmpty > 0 && (
+          <span className="flex items-center gap-1.5 text-xs font-medium text-orange-600 bg-orange-50 dark:bg-orange-950/30 dark:text-orange-400 rounded-full px-2.5 py-1">
+            <AlertTriangle className="h-3.5 w-3.5" />
+            {accountsWithEmpty} account{accountsWithEmpty !== 1 ? "s" : ""} have empty slots
+          </span>
+        )}
+      </div>
+
+      {/* Summary bar */}
+      <div className="flex gap-6 text-sm text-muted-foreground border border-border rounded-lg px-4 py-3 bg-muted/20">
+        <span>
+          <span className="font-semibold text-foreground">{totalAccounts}</span> accounts
         </span>
-      </h1>
+        <span>
+          <span className="font-semibold text-foreground">{totalScheduled}</span> upcoming posts
+        </span>
+        <span className={totalEmpty > 0 ? "text-orange-600 dark:text-orange-400" : ""}>
+          <span className="font-semibold">{totalEmpty}</span> empty{" "}
+          {totalEmpty === 1 ? "slot" : "slots"} in next 2 weeks
+        </span>
+      </div>
 
       {projects.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-            <FolderOpen className="h-10 w-10 text-muted-foreground/40 mb-3" />
-            <p className="text-sm text-muted-foreground">
-              No projects found.
-            </p>
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border border-border flex flex-col items-center justify-center py-10 text-center">
+          <FolderOpen className="h-8 w-8 text-muted-foreground/40 mb-2" />
+          <p className="text-sm text-muted-foreground">No projects found.</p>
+        </div>
       ) : (
         projects.map((project) => (
           <div key={project.id} className="space-y-3">
+            {/* Project header */}
             <div className="flex items-center gap-2">
               {project.color && (
                 <span
@@ -65,31 +99,14 @@ export function AccountList() {
                 No accounts in this project.
               </p>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {project.project_accounts.map((account) => (
-                  <Card key={account.id}>
-                    <CardContent className="flex items-center gap-3 p-4">
-                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center shrink-0">
-                        <User className="h-5 w-5 text-muted-foreground" />
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-medium truncate">
-                          @{account.username}
-                        </p>
-                        <div className="flex items-center gap-2 mt-1">
-                          {account.nickname && (
-                            <span className="text-xs text-muted-foreground truncate">
-                              {account.nickname}
-                            </span>
-                          )}
-                          <span className="text-xs text-muted-foreground">
-                            Added{" "}
-                            {new Date(account.added_at).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <AccountScheduleCard
+                    key={account.id}
+                    account={account}
+                    scheduledSets={scheduledSets}
+                    onMutate={mutate}
+                  />
                 ))}
               </div>
             )}

@@ -36,29 +36,23 @@ export interface ScheduleRequest {
   notes: string | null;
 }
 
-export interface RecentSet {
+export interface AccountStat {
   id: string;
-  status: string;
-  created_at: string;
-  video_description: string | null;
-  thumbnail_url: string | null;
-  progress_current: number;
-  progress_total: number;
-  scheduled_at: string | null;
-  posted_at: string | null;
+  username: string;
+  nickname: string | null;
+  totalSets: number;
+  completedSets: number;
+  scheduledSets: number;
+  postedSets: number;
 }
 
 export interface StatsResponse {
-  totalVideos: number;
   totalSets: number;
-  totalImages: number;
-  estimatedCost: number;
   completedSets: number;
-  failedSets: number;
-  scheduledSets: number;
+  pendingSets: number;
+  unscheduledSets: number;
   postedSets: number;
-  failedImages: number;
-  recentSets: RecentSet[];
+  accountStats: AccountStat[];
 }
 
 export interface GenerationSetWithVideo {
@@ -80,6 +74,11 @@ export interface GenerationSetWithVideo {
     url: string;
     description: string | null;
     original_images: string[] | null;
+  } | null;
+  channel: {
+    id: string;
+    username: string;
+    nickname: string | null;
   } | null;
 }
 

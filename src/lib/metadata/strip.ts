@@ -6,8 +6,11 @@ interface StripMetadataParams {
 }
 
 /**
- * Strips all metadata (EXIF, XMP, C2PA, Synth ID, PNG ancillary chunks)
- * and resizes to 1080x1350 (TikTok 4:5 carousel standard).
+ * Strips all metadata (EXIF, XMP, C2PA, Synth ID, PNG ancillary chunks).
+ * Preserves the original image dimensions (no resize).
+ *
+ * Note: sharp strips all metadata by default when .withMetadata() is NOT called.
+ * Calling .withMetadata({}) (even with empty options) copies metadata from input — do not use it.
  */
 export async function stripMetadataAndResize(
   params: StripMetadataParams
@@ -15,26 +18,16 @@ export async function stripMetadataAndResize(
   const { imageBuffer, outputFormat } = params;
 
   let pipeline = sharp(imageBuffer)
-    .resize(1080, 1350, {
-      fit: "cover",
-      position: "center",
-    })
-    .removeAlpha() // Remove alpha for JPEG compatibility
-    .withMetadata({}); // Empty metadata = strip all
+    .removeAlpha(); // Remove alpha for JPEG compatibility
 
-  // Re-add alpha for PNG/WebP if needed
+  // Re-add alpha support for PNG/WebP
   if (outputFormat === "png" || outputFormat === "webp") {
-    pipeline = sharp(imageBuffer)
-      .resize(1080, 1350, {
-        fit: "cover",
-        position: "center",
-      })
-      .withMetadata({});
+    pipeline = sharp(imageBuffer);
   }
 
   switch (outputFormat) {
     case "png":
-      return pipeline.png({ quality: 100 }).toBuffer();
+      return pipeline.png({ quality: 90 }).toBuffer();
     case "jpeg":
       return pipeline.jpeg({ quality: 95, mozjpeg: true }).toBuffer();
     case "webp":

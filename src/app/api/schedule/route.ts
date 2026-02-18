@@ -66,17 +66,21 @@ export async function POST(request: NextRequest) {
 
 export async function PUT(request: NextRequest) {
   try {
-    const { setId, channelId, scheduledAt, notes } = await request.json();
+    const body = await request.json();
+    const { setId, scheduledAt } = body;
     const supabase = createServerClient();
+
+    const updateData: Record<string, unknown> = {
+      scheduled_at: scheduledAt,
+      updated_at: new Date().toISOString(),
+    };
+    // Only mutate channel_id / notes when the client explicitly sends them
+    if ("channelId" in body) updateData.channel_id = body.channelId ?? null;
+    if ("notes" in body) updateData.notes = body.notes ?? null;
 
     const { data, error } = await supabase
       .from("generation_sets")
-      .update({
-        channel_id: channelId,
-        scheduled_at: scheduledAt,
-        notes: notes ?? undefined,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updateData)
       .eq("id", setId)
       .select()
       .single();

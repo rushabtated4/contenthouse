@@ -3,7 +3,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { createZipFromUrls } from "@/lib/zip/create";
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ setId: string }> }
 ) {
   try {
@@ -27,7 +27,7 @@ export async function GET(
       );
     }
 
-    // Get set info for filename
+    // Get set info
     const { data: set } = await supabase
       .from("generation_sets")
       .select("set_index, output_format")
@@ -42,6 +42,12 @@ export async function GET(
         url: img.image_url!,
         filename: `slide_${i + 1}.${ext}`,
       }));
+
+    // ?urls=1 → return JSON so the client can zip in the browser (faster)
+    const urlsOnly = new URL(request.url).searchParams.get("urls") === "1";
+    if (urlsOnly) {
+      return NextResponse.json({ images: entries, ext });
+    }
 
     const zipBuffer = await createZipFromUrls(entries);
 

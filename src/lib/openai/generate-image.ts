@@ -44,7 +44,7 @@ export async function generateImage(
     image: images,
     prompt: params.prompt,
     n: 1,
-    size: "1024x1536", // Closest 4:5 ratio, resized to 1080x1350 after
+    size: "1024x1536", // 4:5 ratio
     quality: params.qualityOutput,
     input_fidelity: params.qualityInput,
   });

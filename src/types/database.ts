@@ -32,6 +32,8 @@ export interface ProjectAccount {
   username: string;
   nickname: string | null;
   added_at: string;
+  days_of_week: number[] | null;
+  posts_per_day: number | null;
 }
 
 export interface ProjectAccountWithProject extends ProjectAccount {
@@ -40,6 +42,35 @@ export interface ProjectAccountWithProject extends ProjectAccount {
 
 export interface ProjectWithAccounts extends Project {
   project_accounts: ProjectAccount[];
+}
+
+export interface App {
+  id: string;
+  name: string;
+  color: string | null;
+  created_at: string;
+}
+
+export interface Account {
+  id: string;
+  username: string;
+  nickname: string | null;
+  app_id: string;
+  sec_uid: string;
+  sync_status: string;
+  last_video_count: number | null;
+  created_at: string;
+}
+
+export interface AppWithAccounts extends App {
+  accounts: Account[];
+}
+
+export interface VideoAccount {
+  id: string;
+  username: string;
+  nickname: string | null;
+  app: { id: string; name: string; color: string | null } | null;
 }
 
 export interface GenerationSet {
