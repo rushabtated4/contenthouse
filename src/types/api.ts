@@ -105,6 +105,18 @@ export interface UploadPostResponse {
   videoId: string | null;
 }
 
+export interface RecentSet {
+  id: string;
+  status: string;
+  progress_current: number;
+  progress_total: number;
+  scheduled_at: string | null;
+  posted_at: string | null;
+  created_at: string;
+  video_description: string | null;
+  thumbnail_url: string | null;
+}
+
 export interface ApiError {
   error: string;
   details?: string;
