@@ -41,6 +41,7 @@ export default function GeneratePage() {
   const [batchId, setBatchId] = useState<string | null>(null);
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [generatedSets] = useState<GenerationSetWithImages[]>([]);
+  const [retryingId, setRetryingId] = useState<string | null>(null);
 
   const handleFetch = (data: { video: Record<string, unknown>; isExisting: boolean }) => {
     const v = data.video as unknown as Video;
@@ -143,12 +144,15 @@ export default function GeneratePage() {
   };
 
   const handleRetryImage = async (imageId: string) => {
+    setRetryingId(imageId);
     try {
       const res = await fetch(`/api/generate/${imageId}/retry`, { method: "POST" });
       if (!res.ok) throw new Error("Retry failed");
       toast.success("Retrying image...");
     } catch {
       toast.error("Retry failed");
+    } finally {
+      setRetryingId(null);
     }
   };
 
@@ -209,6 +213,7 @@ export default function GeneratePage() {
             sets={generatedSets}
             originalImages={video.original_images || []}
             onRetryImage={handleRetryImage}
+            retryingId={retryingId}
           />
         </>
       )}
