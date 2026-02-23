@@ -6,6 +6,7 @@ import type { GenerationSetWithVideo } from "@/types/api";
 
 interface UseGeneratedSetsOptions {
   status: string;
+  reviewStatus?: string;
   sort: string;
   page: number;
   limit: number;
@@ -21,6 +22,7 @@ interface UseGeneratedSetsReturn {
 
 export function useGeneratedSets({
   status,
+  reviewStatus,
   sort,
   page,
   limit,
@@ -31,6 +33,9 @@ export function useGeneratedSets({
     page: page.toString(),
     limit: limit.toString(),
   });
+  if (reviewStatus && reviewStatus !== "all") {
+    params.set("review_status", reviewStatus);
+  }
   const key = `/api/generation-sets?${params}`;
 
   const { data, isLoading, mutate } = useSWR<{

@@ -47,6 +47,11 @@ export async function processBatch(
   }
 
   // Fetch the parent video for original images
+  if (!genSet.video_id) {
+    await failSet(supabase, setId, "No video linked to this generation set");
+    throw new Error("No video linked to this generation set");
+  }
+
   const { data: video } = await supabase
     .from("videos")
     .select("original_images")
@@ -54,6 +59,7 @@ export async function processBatch(
     .single();
 
   if (!video?.original_images) {
+    await failSet(supabase, setId, "No original images found for video");
     throw new Error("No original images found for video");
   }
 
@@ -207,6 +213,27 @@ export async function processBatch(
     hasMore,
     nextBatchStart: batchStart + processed,
   };
+}
+
+/**
+ * Mark a set as failed with an error message.
+ * Called when the set encounters an unrecoverable error before image processing.
+ */
+async function failSet(
+  supabase: ReturnType<typeof createServerClient>,
+  setId: string,
+  errorMessage: string
+) {
+  console.error(`Set ${setId} failed: ${errorMessage}`);
+
+  // Mark all pending/generating images as failed
+  await supabase
+    .from("generated_images")
+    .update({ status: "failed", error_message: errorMessage })
+    .eq("set_id", setId)
+    .in("status", ["pending", "generating"]);
+
+  await finalizeSet(supabase, setId);
 }
 
 async function finalizeSet(

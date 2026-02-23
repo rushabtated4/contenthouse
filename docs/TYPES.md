@@ -86,6 +86,7 @@ interface ScheduledSetSummary {
   posted_at: string | null;
   title: string | null;
   video_id: string | null;
+  thumbnail_url: string | null;
 }
 ```
 
@@ -98,6 +99,26 @@ type PostingSlot = {
   set: ScheduledSetSummary | null;
   status: "posted" | "scheduled" | "empty";
 };
+```
+
+### DayCell
+
+```typescript
+interface DayCell {
+  date: Date;
+  dayOfWeek: number;
+  active: boolean;
+  slots: PostingSlot[];
+}
+```
+
+### WeekRow
+
+```typescript
+interface WeekRow {
+  weekLabel: string;
+  days: DayCell[];
+}
 ```
 
 ---
@@ -117,7 +138,9 @@ interface GenerationSet {
   quality_output: string;
   output_format: string;
   selected_slides: number[] | null;
-  status: "queued" | "processing" | "completed" | "partial" | "failed";
+  editor_state: EditorStateJson | null;
+  status: "queued" | "processing" | "completed" | "partial" | "failed" | "editor_draft";
+  review_status: "unverified" | "ready_to_post";
   progress_current: number;
   progress_total: number;
   channel_id: string | null;
@@ -205,6 +228,147 @@ interface VideoWithSets extends Video {
 
 ---
 
+## Editor Types — `src/types/editor.ts`
+
+### TextSegment
+
+```typescript
+interface TextSegment {
+  text: string;
+  bold: boolean; // true = render at bold weight (700, or 800 if block fontWeight >= 700)
+}
+```
+
+### TextBlock
+
+```typescript
+interface TextBlock {
+  id: string;
+  text: string;
+  paraphrasedText?: string; // AI-paraphrased version from extract-text API
+  segments?: TextSegment[]; // inline bold segments; if undefined, entire text uses block fontWeight
+  x: number;           // percentage 0-100
+  y: number;           // percentage 0-100
+  width: number;       // percentage 0-100
+  height: number;      // percentage 0-100
+  fontSize: number;    // px at 1080 canvas width
+  fontWeight: 400 | 500 | 600 | 700 | 800;
+  zIndex: number;      // layer ordering (higher = in front)
+  color: string;       // hex
+  alignment: "left" | "center" | "right";
+  hasShadow: boolean;
+  shadowColor: string; // hex
+  shadowBlur: number; // 0-20 px
+  shadowOffsetX: number; // px
+  shadowOffsetY: number; // px
+  backgroundColor: string; // hex (default "#000000")
+  backgroundOpacity: number; // 0-1 (default 0)
+  backgroundPadding: number; // px (default 20)
+  backgroundCornerRadius: number; // px (default 16)
+  backgroundBorderColor: string; // hex (default "#000000")
+  backgroundBorderWidth: number; // 0-8 px (default 0)
+  hasStroke: boolean;        // enable/disable text outline (default false)
+  strokeColor: string;       // hex (default "#000000")
+  strokeWidth: number;       // 0-10 px (default 0)
+  textTransform: "none" | "uppercase" | "lowercase"; // default "none"
+  lineHeight: number;        // multiplier 0.8-3.0 (default 1.2)
+  letterSpacing: number;     // px at 1080 canvas width (default 0)
+}
+```
+
+### OverlayImage
+
+```typescript
+interface OverlayImage {
+  id: string;
+  imageUrl: string;
+  x: number;          // % 0-100
+  y: number;          // % 0-100
+  width: number;      // % 0-100
+  height: number;     // % 0-100
+  rotation: number;   // degrees
+  opacity: number;    // 0-1
+  cornerRadius: number;  // px at canvas scale (0 = sharp corners)
+  zIndex: number;     // layer ordering
+}
+```
+
+### EditorElementRef & ElementGroup
+
+```typescript
+type EditorElementType = "textBlock" | "overlay";
+interface EditorElementRef { type: EditorElementType; id: string; }
+interface ElementGroup { id: string; elementRefs: EditorElementRef[]; }
+```
+
+### EditorSlide
+
+```typescript
+interface EditorSlide {
+  id: string;
+  originalImageUrl: string;
+  backgroundUrl: string | null;
+  backgroundLibraryId: string | null;
+  bgPrompt: string;
+  textBlocks: TextBlock[];
+  overlayImages: OverlayImage[];
+  groups: ElementGroup[];
+}
+```
+
+### ExtractedSlide
+
+```typescript
+interface ExtractedSlide {
+  slideIndex: number;
+  blocks: TextBlock[];
+}
+```
+
+### BackgroundLibraryItem
+
+```typescript
+interface BackgroundLibraryItem {
+  id: string;
+  image_url: string;
+  source: "generated" | "uploaded";
+  prompt: string | null;
+  source_video_id: string | null;
+  width: number | null;
+  height: number | null;
+  created_at: string;
+}
+```
+
+### EditorStateJson
+
+```typescript
+interface EditorStateJson {
+  version: 1 | 2;  // v2 adds overlayImages, groups, zIndex
+  aspectRatio: "2:3" | "9:16" | "4:5";
+  outputFormat: "png" | "jpeg" | "webp";
+  slides: EditorSlide[];
+  originalSlides: string[];
+}
+```
+
+### EditorExportRequest
+
+```typescript
+interface EditorExportRequest {
+  slides: {
+    backgroundUrl: string | null;
+    originalImageUrl: string;
+    textBlocks: TextBlock[];
+    overlayImages: OverlayImage[];
+  }[];
+  aspectRatio?: "2:3" | "9:16" | "4:5";
+  outputFormat: "png" | "jpeg" | "webp";
+}
+```
+
+---
+
 ## API Types — `src/types/api.ts`
 
 ### Requests
@@ -273,6 +437,9 @@ interface StatsResponse {
   pendingSets: number;
   unscheduledSets: number;
   postedSets: number;
+  totalVideos: number;
+  totalImages: number;
+  estimatedCost: number;
   accountStats: AccountStat[];
 }
 
@@ -282,6 +449,7 @@ interface GenerationSetWithVideo {
   title: string | null;
   set_index: number;
   status: string;
+  review_status: "unverified" | "ready_to_post";
   progress_current: number;
   progress_total: number;
   channel_id: string | null;
@@ -319,6 +487,53 @@ interface MarkPostedRequest {
 interface UploadPostResponse {
   setId: string;
   videoId: string | null;
+}
+
+interface RecentSet {
+  id: string;
+  status: string;
+  progress_current: number;
+  progress_total: number;
+  scheduled_at: string | null;
+  posted_at: string | null;
+  created_at: string;
+  video_description: string | null;
+  thumbnail_url: string | null;
+}
+
+interface ExtractTextRequest {
+  videoId: string;
+  slideIndexes: number[];
+  aspectRatio?: "2:3" | "9:16" | "4:5";
+}
+
+interface ExtractTextResponse {
+  slides: ExtractedSlide[];
+}
+
+interface GenerateBackgroundRequest {
+  videoId: string;
+  slideIndex: number;
+  prompt?: string;
+}
+
+interface GenerateBackgroundResponse {
+  imageUrl: string;
+  libraryId: string;
+}
+
+interface GenerateBackgroundBatchRequest {
+  videoId: string;
+  slideIndexes: number[];
+  prompt?: string;
+}
+
+interface BackgroundsListResponse {
+  backgrounds: BackgroundLibraryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 interface ApiError {
@@ -452,6 +667,16 @@ interface VideoFilters {
 ### useGeneratedSets
 
 ```typescript
+// Options
+interface UseGeneratedSetsOptions {
+  status: string;
+  reviewStatus?: string;
+  sort: string;
+  page: number;
+  limit: number;
+}
+
+// Return
 {
   sets: GenerationSetWithVideo[];
   total: number;

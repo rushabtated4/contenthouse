@@ -34,12 +34,40 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+export async function PATCH(request: NextRequest) {
+  try {
+    const supabase = createServerClient();
+    const { setId, review_status } = await request.json();
+
+    if (!setId || !["unverified", "ready_to_post"].includes(review_status)) {
+      return NextResponse.json(
+        { error: "Provide setId and review_status (unverified | ready_to_post)" },
+        { status: 400 }
+      );
+    }
+
+    const { data, error } = await supabase
+      .from("generation_sets")
+      .update({ review_status, updated_at: new Date().toISOString() })
+      .eq("id", setId)
+      .select()
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json(data);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+}
+
 export async function GET(request: NextRequest) {
   try {
     const supabase = createServerClient();
     const { searchParams } = request.nextUrl;
 
     const status = searchParams.get("status") || "all";
+    const reviewStatus = searchParams.get("review_status");
     const scheduled = searchParams.get("scheduled");
     const unscheduled = searchParams.get("unscheduled");
     const sort = searchParams.get("sort") || "newest";
@@ -65,6 +93,13 @@ export async function GET(request: NextRequest) {
       } else {
         query = query.eq("status", status);
       }
+    } else {
+      // Exclude editor drafts from default listing
+      query = query.neq("status", "editor_draft");
+    }
+
+    if (reviewStatus && ["unverified", "ready_to_post"].includes(reviewStatus)) {
+      query = query.eq("review_status", reviewStatus);
     }
 
     if (scheduled === "false" || unscheduled === "true") {

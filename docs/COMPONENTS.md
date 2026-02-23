@@ -23,35 +23,59 @@ RootLayout (src/app/layout.tsx)
 │   └── QuickActions (dashboard/quick-actions.tsx)
 │
 ├── /videos → VideoGrid (carousel/video-grid.tsx)
+│   ├── AppTabs (carousel/app-tabs.tsx)
+│   ├── VideoFilterBar (carousel/video-filter-bar.tsx)
 │   ├── LoadingSkeleton (shared/loading-skeleton.tsx)
 │   ├── EmptyState (shared/empty-state.tsx)
 │   └── VideoCard[] (carousel/video-card.tsx)
 │       ├── ImageThumbnail (shared/image-thumbnail.tsx)
 │       └── EngagementStats (shared/engagement-stats.tsx)
 │
-├── /generate → GeneratePage (generate/page.tsx)
-│   ├── UrlInput (generate/url-input.tsx)
-│   ├── ManualUpload (generate/manual-upload.tsx)  [UI only, no backend]
-│   ├── VideoMetaBar (generate/video-meta-bar.tsx)
-│   │   └── EngagementStats
-│   ├── SlideFilmstrip (generate/slide-filmstrip.tsx)
-│   │   └── SlideGrid → SlideCard[]
-│   ├── GlobalControls (generate/global-controls.tsx)
-│   ├── GenerationProgress (generate/generation-progress.tsx)
-│   └── ResultsSection (generate/results-section.tsx)
-│       ├── ComparisonCard[] (original ← → generated side-by-side per slide)
-│       └── SetContent (status badge, Download ZIP, ScheduleControls)
+├── /generate → GeneratePage (generate/page.tsx)  [Tabs: Quick Generate | Editor Mode]
+│   ├── [Quick Generate tab]
+│   │   ├── UrlInput (generate/url-input.tsx)
+│   │   ├── ManualUpload (generate/manual-upload.tsx)  [UI only, no backend]
+│   │   ├── VideoMetaBar (generate/video-meta-bar.tsx)
+│   │   │   └── EngagementStats
+│   │   ├── SlideFilmstrip (generate/slide-filmstrip.tsx)
+│   │   │   └── SlideGrid → SlideCard[]
+│   │   ├── GlobalControls (generate/global-controls.tsx)
+│   │   ├── GenerationProgress (generate/generation-progress.tsx)
+│   │   └── ResultsSection (generate/results-section.tsx)
+│   │       ├── ComparisonCard[] (original ← → generated side-by-side per slide)
+│   │       └── SetContent (status badge, Download ZIP, ScheduleControls)
+│   └── [Editor Mode tab]
+│       └── CarouselEditor (editor/carousel-editor.tsx)
+│           ├── Reference slides strip (original thumbnails + per-slide actions)
+│           │   └── ReferenceSlide[] (extract text, use original as background, generate background w/ editable prompt)
+│           ├── EditorFilmstrip (editor/editor-filmstrip.tsx)
+│           ├── EditorToolbar (editor/editor-toolbar.tsx) [+undo/redo, group/ungroup]
+│           ├── EditorCanvas (editor/editor-canvas.tsx) [z-order rendering, multi-select, shortcuts]
+│           │   ├── CanvasBackground (editor/canvas-background.tsx)
+│           │   ├── CanvasTextBlock[] (editor/canvas-text-block.tsx) [+Transformer width resize]
+│           │   └── CanvasOverlayImage[] (editor/canvas-overlay-image.tsx) [NEW]
+│           ├── TextPropertiesPanel (editor/text-properties-panel.tsx)
+│           ├── ZOrderControls (editor/z-order-controls.tsx) [NEW]
+│           ├── OverlayControls (editor/overlay-controls.tsx) [NEW]
+│           │   └── OverlayLibraryDialog (editor/overlay-library-dialog.tsx) [NEW]
+│           ├── BackgroundControls (editor/background-controls.tsx)
+│           ├── BackgroundLibraryDialog (editor/background-library-dialog.tsx)
+│           └── ExtractTextModal (editor/extract-text-modal.tsx)
 │
-├── /generate/[id] → GenerateDetailPage (generate/[id]/page.tsx)
-│   ├── VideoMetaBar
-│   ├── SlideFilmstrip (with SlideGrid)
-│   ├── GlobalControls
-│   ├── GenerationProgress
-│   └── ResultsSection (with ScheduleControls per set)
+├── /generate/[id] → GenerateDetailPage (generate/[id]/page.tsx)  [Tabs: Quick Generate | Editor Mode]
+│   ├── [Quick Generate tab]
+│   │   ├── VideoMetaBar
+│   │   ├── SlideFilmstrip (with SlideGrid)
+│   │   ├── GlobalControls
+│   │   ├── GenerationProgress
+│   │   └── ResultsSection (with ScheduleControls per set)
+│   └── [Editor Mode tab]
+│       └── CarouselEditor (same as above)
 │
 ├── /generated → GeneratedGrid (generated/generated-grid.tsx)
 │   ├── Status filter tabs + sort dropdown
 │   ├── GeneratedSetCard[] (generated/generated-set-card.tsx)
+│   ├── AssignChannelModal (generated/assign-channel-modal.tsx)
 │   └── Pagination controls
 │
 ├── /calendar → CalendarView (calendar/calendar-view.tsx)
@@ -68,8 +92,9 @@ RootLayout (src/app/layout.tsx)
 └── /accounts → AccountList (accounts/account-list.tsx)
     ├── Loading skeleton
     ├── Empty state
-    └── Project sections (color dot, name, account count)
-        └── Account cards (user icon, @username, nickname, added date)
+    └── AccountScheduleCard[] (accounts/account-schedule-card.tsx)
+        ├── ScheduleConfigEditor (accounts/schedule-config-editor.tsx)
+        └── AssignSetModal (accounts/assign-set-modal.tsx)
 ```
 
 ---
@@ -110,12 +135,22 @@ Displays: total videos, total sets, total images, estimated cost. No longer in h
 **File:** `src/components/carousel/video-grid.tsx`
 **Props:** none
 **Hook:** `useVideos({ limit })`
-**State:** Accumulates videos via load-more pattern (limit = 24 per batch). Shows loading skeleton, empty state, or grid with total count header and "Load more (N of T)" button.
+**State:** Accumulates videos via load-more pattern (limit = 24 per batch). Filter state (search, minViews, accountId, dateRange, sort, maxGenCount, appId) is synced to URL search params so filters persist across navigation (back button). Shows loading skeleton, empty state, or grid with total count header and "Load more (N of T)" button.
 
 ### VideoCard
 **File:** `src/components/carousel/video-card.tsx`
 **Props:** `{ video: Video }`
 Card with thumbnail, description (line-clamp-2), engagement stats, generation count badge. Links to `/generate/{id}`. Hover shows "Regenerate" button.
+
+### AppTabs
+**File:** `src/components/carousel/app-tabs.tsx`
+**Props:** `{ apps: AppWithAccounts[], selectedAppId: string | null, onSelect: (appId: string | null) => void, loading?: boolean }`
+Horizontal scrollable pill tabs for filtering by app. "All Apps" tab + one tab per app with color dot and account count. Loading state shows skeleton pills.
+
+### VideoFilterBar
+**File:** `src/components/carousel/video-filter-bar.tsx`
+**Props:** `{ search, onSearchChange, minViews, onMinViewsChange, accountId, onAccountIdChange, dateRange, onDateRangeChange, sort, onSortChange, maxGenCount, onMaxGenCountChange, accounts: Account[], loaded: number, total: number, hasActiveFilters?: boolean, onResetFilters?: () => void }`
+Row of filter controls: debounced search input, min views dropdown, account dropdown, date range dropdown, sort dropdown, generation count dropdown. Shows "N of T videos" count. Shows a "Reset" button when any filter differs from defaults.
 
 ---
 
@@ -164,8 +199,8 @@ Overall progress bar, per-set progress bars with status badges, failed image lis
 
 ### ResultsSection
 **File:** `src/components/generate/results-section.tsx`
-**Props:** `{ sets: GenerationSetWithImages[], originalImages: string[], onRetryImage: (imageId: string) => void }`
-Per-slide comparison grid with set tabs when 2+ sets. Each slide shows a side-by-side card with faded original on the left and generated image on the right (ComparisonCard). Grid layout: 3 cards per row on desktop, 2 on tablet, 1 on mobile. Actions card per set: status badge, Download ZIP button, ScheduleControls. Empty state with dashed border when no sets.
+**Props:** `{ sets: GenerationSetWithImages[], originalImages: string[], onRetryImage: (imageId: string) => void, retryingId: string | null, onEditInEditor?: (setId: string) => void, onRefetch?: () => void }`
+Per-slide comparison grid with set tabs when 2+ sets. Each slide shows a side-by-side card with faded original on the left and generated image on the right (ComparisonCard). Grid layout: 3 cards per row on desktop, 2 on tablet, 1 on mobile. Actions card per set: ReviewStatusBadge, ScheduleControls, Download ZIP button, "Edit in Editor" button (shown when set has completed images). Empty state with dashed border when no sets.
 
 ### OutputDisplay (legacy)
 **File:** `src/components/generate/output-display.tsx`
@@ -177,6 +212,83 @@ Per-set cards with status badge, download ZIP button, scrollable slide thumbnail
 **Props:** `{ setId: string, initialChannelId?, initialScheduledAt?, initialPostedAt? }`
 **Hook:** `useProjects()`
 Channel dropdown (grouped by project), datetime picker, save button. "Mark as Posted" / "Undo" toggle button. Green "Posted" badge when posted. Calls `POST /api/schedule` and `PATCH /api/schedule`.
+
+---
+
+## Editor Components
+
+### CarouselEditor
+**File:** `src/components/editor/carousel-editor.tsx`
+**Props:** `{ video: Video & { generation_sets?: GenerationSetWithImages[] }, editorSetId?: string | null }`
+**Store:** `useEditorStore` (Zustand)
+Top-level editor component. When `editorSetId` is provided, initializes from that generation set's completed images (via `initFromGeneratedSet`); otherwise initializes with blank working slides. Stores originals as read-only references. Shows a reference slides strip (non-editable thumbnails) above the working filmstrip. Right sidebar shows: TextPropertiesPanel (when single text block selected), ZOrderControls (when any element selected), OverlayControls, BackgroundControls.
+
+### EditorFilmstrip
+**File:** `src/components/editor/editor-filmstrip.tsx`
+**Props:** none (reads from Zustand store)
+Horizontal strip of slide thumbnails. Click to select active slide. Shows background overlay indicator.
+
+### EditorToolbar
+**File:** `src/components/editor/editor-toolbar.tsx`
+**Props:** none (reads from Zustand store)
+Action buttons: Undo/Redo (disabled when history/future empty), Extract Text, Generate All Backgrounds, Group/Ungroup (shown when 2+ elements selected), Save, output format dropdown, Download ZIP. Save button uses `variant="default"` when dirty, `variant="outline"` when clean.
+
+### EditorCanvas
+**File:** `src/components/editor/editor-canvas.tsx`
+**Props:** none (reads from Zustand store)
+Konva `Stage` + `Layer` rendering the active slide. Contains `CanvasBackground`, text blocks and overlay images sorted by zIndex, and snap guide `Line` elements. Canvas height is dynamic based on `aspectRatio` store state. Multi-select via shift-click. Keyboard shortcuts: Cmd+Z (undo), Cmd+Shift+Z (redo), Cmd+G (group), Cmd+Shift+G (ungroup), Delete/Backspace (delete selected), Escape (deselect).
+
+### CanvasTextBlock
+**File:** `src/components/editor/canvas-text-block.tsx`
+**Props:** `{ block: TextBlock, slideIndex: number, isSelected: boolean, onSelect: (additive: boolean) => void, canvasHeight: number, onSnapLines: (lines) => void }`
+Draggable Konva `Group` with mixed-bold support and horizontal width resize via `Transformer` (middle-left/middle-right anchors, min 50px). Shift-click for additive multi-select. When `block.segments` has multiple entries, renders via `<Shape>` with custom `sceneFunc`. Double-click opens inline textarea with `**bold**` markdown markers. Drag to reposition with auto-snap.
+
+### CanvasBackground
+**File:** `src/components/editor/canvas-background.tsx`
+**Props:** `{ url: string, canvasHeight: number }`
+Konva `Image` node filling the full canvas. Loads image asynchronously. Uses dynamic `canvasHeight` prop.
+
+### CanvasOverlayImage
+**File:** `src/components/editor/canvas-overlay-image.tsx`
+**Props:** `{ overlay: OverlayImage, slideIndex: number, isSelected: boolean, onSelect: (additive: boolean) => void, canvasHeight: number, onSnapLines: (lines) => void }`
+Draggable Konva overlay image with all-anchor resize and rotation via `Transformer`. Loads image with crossOrigin. Shift-click for multi-select. Converts position/size to/from percentage coordinates. Snap guides on drag.
+
+### OverlayControls
+**File:** `src/components/editor/overlay-controls.tsx`
+**Props:** none (reads from Zustand store)
+Sidebar panel for overlay image management. Upload button (POST /api/overlays), Library button (opens OverlayLibraryDialog). When a single overlay is selected, shows width/height numeric inputs (% of canvas), corner radius slider (0-100px), opacity slider, and delete button.
+
+### OverlayLibraryDialog
+**File:** `src/components/editor/overlay-library-dialog.tsx`
+**Props:** `{ open: boolean, onOpenChange: (open: boolean) => void, slideIndex: number }`
+Dialog listing overlay images from `GET /api/overlays`. Grid of thumbnails; click to add overlay to current slide via `addOverlayImage`.
+
+### ZOrderControls
+**File:** `src/components/editor/z-order-controls.tsx`
+**Props:** none (reads from Zustand store)
+Sidebar panel with 4 buttons: Bring to Front, Move Forward, Move Backward, Send to Back. Shown only when `selectedIds.length > 0`. Calls store z-order actions.
+
+### TextPropertiesPanel
+**File:** `src/components/editor/text-properties-panel.tsx`
+**Props:** none (reads from Zustand store)
+Side panel for editing selected text block properties: text content, font size, font weight (400/500/700/800), color picker, Text Transform (select: none/uppercase/lowercase), Line Height (range slider 0.8-3.0), Letter Spacing (range slider 0-30px), text outline toggle with color picker and width slider (1-10px), text alignment (left/center/right), background color picker with opacity slider (0-100%), Background Padding (range slider 0-60px), Background Corner Radius (range slider 0-50px), Background Border Width (range slider 0-8px) + border color picker, shadow toggle with color picker, blur slider (0-20), and X/Y offset sliders (-10 to 10). Add/delete text block buttons. "Use Paraphrased Text" button swaps block text with AI-paraphrased version (shown only when `paraphrasedText` exists and differs from current text).
+
+### BackgroundControls
+**File:** `src/components/editor/background-controls.tsx`
+**Props:** none (reads from Zustand store)
+Background prompt textarea, "Regenerate" button (single slide), "Upload" button, "Library" button (opens BackgroundLibraryDialog). Calls `/api/editor/generate-background`.
+
+### BackgroundLibraryDialog
+**File:** `src/components/editor/background-library-dialog.tsx`
+**Props:** `{ open: boolean, onOpenChange: (open: boolean) => void }`
+**Hook:** `useBackgrounds()`
+Dialog with grid of saved background images from `background_library` table. Click to apply background to active slide. Delete button per item. Calls `GET /api/backgrounds`, `DELETE /api/backgrounds/[id]`.
+
+### ExtractTextModal
+**File:** `src/components/editor/extract-text-modal.tsx`
+**Props:** none (reads from Zustand store)
+**Store fields:** `extractTextModalOpen`, `extractedResults`, `originalSlides`, `extractionStatus`
+Modal dialog for reviewing/editing GPT-5.2 extracted text before applying to canvas. Side-by-side layout: original slide thumbnail on left, editable text blocks on right. Text input uses a monospace textarea showing `**bold**` markdown markers when segments with mixed bold exist. Editing with `**markers**` is parsed back into segments. Each block shows original text and paraphrased rewrite with a swap button. Info row displays textTransform, lineHeight, letterSpacing, stroke properties, and a "Mixed bold" amber badge when segments have mixed bold. "Add to canvas" applies all text blocks to working slides; "Cancel" discards. Opens automatically after `extractText()` completes.
 
 ---
 
@@ -239,6 +351,17 @@ Icon + formatted count for each stat. Compact mode for smaller display.
 **File:** `src/components/shared/loading-skeleton.tsx`
 Exports: `VideoGridSkeleton`, `GeneratePageSkeleton`
 
+### ReviewStatusBadge
+**File:** `src/components/shared/review-status-badge.tsx`
+**Props:** `{ setId: string, reviewStatus: "unverified" | "ready_to_post", onToggled?: () => void }`
+Clickable badge that toggles review status between `unverified` and `ready_to_post` via `PATCH /api/generation-sets`. Green styling for ready, muted for unverified. Shows CheckCircle2/Circle icons.
+
+### PromptTextarea
+**File:** `src/components/shared/prompt-textarea.tsx`
+**Props:** `{ value: string, onChange: (v: string) => void, placeholder?: string, className?: string }`
+**Hook:** `usePromptHistory()`
+Textarea with saved prompt history dropdown. On focus, shows filtered history as portal dropdown (positioned via getBoundingClientRect). Click to apply saved prompt, X to delete. Auto-saves on blur if prompt length >= 8.
+
 ---
 
 ## Dashboard Components
@@ -271,7 +394,23 @@ Quick Actions card with 3 nav buttons (Generate, Calendar, Generated). Not curre
 **File:** `src/components/accounts/account-list.tsx`
 **Props:** none
 **Hook:** `useProjects()`
-Read-only list of project accounts grouped by project. Each project section has a color dot heading with account count. Account cards show user icon, @username, nickname, and added date. Loading skeleton and empty state.
+Read-only list of project accounts grouped by project. Each project section has a color dot heading with account count. Renders `AccountScheduleCard` for each account. Loading skeleton and empty state.
+
+### AccountScheduleCard
+**File:** `src/components/accounts/account-schedule-card.tsx`
+**Props:** `{ account: ProjectAccount, scheduledSets: ScheduledSetSummary[], onMutate: () => void }`
+**Hooks:** `computeWeekGrid()`, `computeSlots()`
+Expandable card per account with compact header (username, day-of-week pills, posts/day, empty slot warning). Expanded view shows a mini week-grid calendar with color-coded cells (green=posted, blue=scheduled, orange=empty). Click cells to open action popover (view post, download ZIP, mark as posted, unassign) or assign modal. Edit button opens `ScheduleConfigEditor` inline.
+
+### ScheduleConfigEditor
+**File:** `src/components/accounts/schedule-config-editor.tsx`
+**Props:** `{ account: ProjectAccount, onSave: (account: ProjectAccount) => void, onCancel: () => void }`
+Inline editor for posting schedule config. Day-of-week toggle buttons (S/M/T/W/T/F/S) + posts/day number input (1-3). Save calls `PATCH /api/project-accounts`.
+
+### AssignSetModal
+**File:** `src/components/accounts/assign-set-modal.tsx`
+**Props:** `{ open: boolean, slot: { date: Date, slotIndex: number } | null, account: ProjectAccount, onClose: () => void, onAssigned: () => void }`
+Dialog to assign an unscheduled completed set to a specific account/date/slot. Lists sets grouped by "Queued for @account" and "Unassigned". Each set shows thumbnail, title, date, and "Assign" button. Calls `POST /api/schedule`.
 
 ---
 
@@ -279,13 +418,18 @@ Read-only list of project accounts grouped by project. Each project section has 
 
 ### GeneratedGrid
 **File:** `src/components/generated/generated-grid.tsx`
-**Hook:** `useGeneratedSets({ status, sort, page, limit })`
-Table/grid view toggle (defaults to table), status filter tabs (All/Completed/Partial/Failed/Queued), sort dropdown, pagination controls. Table view shows rows with thumbnail, description, slides, status, schedule, date.
+**Hook:** `useGeneratedSets({ status, reviewStatus, sort, page, limit })`
+Table/grid view toggle (defaults to table), status filter tabs (All/Completed/Partial/Failed/Queued), review status filter tabs (All/Unverified/Ready to post), sort dropdown, pagination controls. Table view shows rows with thumbnail, description, slides, status, review status (shared `ReviewStatusBadge`), account, schedule, date.
 
 ### GeneratedSetCard
 **File:** `src/components/generated/generated-set-card.tsx`
 **Props:** `{ set: GenerationSetWithVideo }`
 Card with first completed image thumbnail, source video description, status badge, slide count, schedule/posted badge, relative date. Click navigates to `/generate/[videoId]`.
+
+### AssignChannelModal
+**File:** `src/components/generated/assign-channel-modal.tsx`
+**Props:** `{ open: boolean, set: GenerationSetWithVideo | null, onClose: () => void, onSaved: () => void }`
+Dialog to assign/update channel for a generation set. Channel select dropdown, save/clear/cancel buttons. No date/time picker — only assigns account. Fetches accounts from `GET /api/project-accounts`. Calls `POST /api/schedule` with `scheduledAt: null`.
 
 ---
 
@@ -293,4 +437,4 @@ Card with first completed image thumbnail, source video description, status badg
 
 Located in `src/components/ui/`. Standard shadcn primitives:
 
-`badge`, `button`, `card`, `calendar`, `dialog`, `dropdown-menu`, `input`, `popover`, `scroll-area`, `select`, `separator`, `sheet`, `sidebar`, `skeleton`, `tabs`, `textarea`, `tooltip`
+`badge`, `button`, `card`, `calendar`, `dialog`, `dropdown-menu`, `input`, `label`, `popover`, `scroll-area`, `select`, `separator`, `sheet`, `sidebar`, `skeleton`, `tabs`, `textarea`, `toggle`, `toggle-group`, `tooltip`

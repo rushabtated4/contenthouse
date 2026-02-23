@@ -285,7 +285,7 @@ Process a batch of images. Self-chains for Vercel compatibility.
 5. Strip metadata and resize to 1080x1350 via sharp
 6. Upload to `generated` bucket
 7. Update `generated_images` record (status, image_url)
-8. Rate limit: 5 requests/minute (token bucket)
+8. Rate limit: 50 requests/minute (token bucket)
 
 **Self-chaining:** If `hasMore`, fires next batch via `fetch()` to itself asynchronously.
 
@@ -425,6 +425,7 @@ List generation sets with filtering and pagination.
 
 **Query Params:**
 - `status` — `all` (default), `completed`, `partial`, `failed`, `queued`. Supports comma-separated values (e.g. `completed,partial`)
+- `review_status` — `unverified`, `ready_to_post`, omitted (no filter)
 - `scheduled` — `true` (only scheduled), `false` (only unscheduled), omitted (no filter)
 - `sort` — `newest` (default), `oldest`
 - `page` — Page number (default: 1)
@@ -465,6 +466,30 @@ List generation sets with filtering and pagination.
   "hasMore": true
 }
 ```
+
+---
+
+## PATCH /api/generation-sets
+
+Update the review status of a generation set.
+
+**File:** `src/app/api/generation-sets/route.ts`
+
+**Request:**
+```json
+{
+  "setId": "uuid",
+  "review_status": "ready_to_post"
+}
+```
+
+Valid values: `unverified`, `ready_to_post`
+
+**Response (200):** Updated `generation_sets` row.
+
+**Errors:**
+- `400` — Missing setId or invalid review_status
+- `500` — Database error
 
 ---
 
@@ -525,6 +550,9 @@ Dashboard statistics.
   "pendingSets": 15,
   "unscheduledSets": 85,
   "postedSets": 30,
+  "totalVideos": 14706,
+  "totalImages": 1200,
+  "estimatedCost": 48.00,
   "accountStats": [
     {
       "id": "account-uuid",
@@ -541,6 +569,9 @@ Dashboard statistics.
 
 - `pendingSets` — Sets with status `queued` or `processing`
 - `unscheduledSets` — Completed sets with no `scheduled_at` and no `posted_at`
+- `totalVideos` — Total video count in the database
+- `totalImages` — Total generated images count
+- `estimatedCost` — Estimated cost in USD (totalImages × $0.04)
 - `accountStats` — Only includes accounts that have at least one generation set assigned
 
 ---
@@ -710,6 +741,370 @@ List all existing overlay images from the `overlays` storage bucket.
 - Sorted by `created_at` descending (newest first)
 - Limited to 100 results
 - Filters out `.emptyFolderPlaceholder` entries
+
+---
+
+## POST /api/overlays
+
+Upload an overlay image to the `overlays` storage bucket.
+
+**File:** `src/app/api/overlays/route.ts`
+
+**Request:** `multipart/form-data`
+- `file` — image file
+
+**Response (200):**
+```json
+{
+  "name": "uuid.png",
+  "url": "https://storage.supabase.co/.../overlays/uuid.png"
+}
+```
+
+---
+
+## POST /api/editor/extract-text
+
+Extract text blocks from carousel slides using GPT-5.2 vision with structured output.
+
+**File:** `src/app/api/editor/extract-text/route.ts`
+
+**Request:**
+```json
+{
+  "videoId": "uuid",
+  "slideIndexes": [0, 1, 2],
+  "aspectRatio": "4:5"
+}
+```
+
+`aspectRatio` is optional, defaults to `"4:5"`. Options: `"2:3"` (1080x1620), `"9:16"` (1080x1920), `"4:5"` (1080x1350). Used to compute the correct canvas height for position extraction.
+
+**Implementation notes:**
+- Uses `response_format: { type: "json_schema" }` (structured output) — guarantees valid JSON with correct shape, no parse errors.
+- GPT-5.2 prompt uses **percentage coordinates** (0-100) for positions. The prompt tells GPT-5.2 the exact canvas dimensions for reference.
+- Each visually distinct text region (heading, body, caption) is returned as a **separate block** — no merging.
+- Font sizes are passed through directly from the model (no multiplier). Prompt guidelines: titles 80-120, body 32-48, clamped to 12-200.
+- `segments` array for mixed-bold detection: `[{ text, bold }]`. Only preserved when actual mixed bold exists.
+- `hasShadow` and `hasStroke` default to `false`
+
+**Response (200):**
+```json
+{
+  "slides": [
+    {
+      "slideIndex": 0,
+      "blocks": [
+        {
+          "id": "uuid",
+          "text": "Extracted text",
+          "paraphrasedText": "Rephrased version of the text",
+          "segments": [{ "text": "Extracted ", "bold": false }, { "text": "text", "bold": true }],
+          "x": 10, "y": 40, "width": 80, "height": 20,
+          "fontSize": 48, "fontWeight": 700,
+          "color": "#FFFFFF", "alignment": "center",
+          "hasShadow": false, "shadowColor": "#000000",
+          "hasStroke": false, "strokeColor": "#000000", "strokeWidth": 0,
+          "textTransform": "uppercase",
+          "lineHeight": 1.2,
+          "letterSpacing": 0,
+          "backgroundPadding": 20,
+          "backgroundCornerRadius": 16,
+          "backgroundBorderColor": "#000000",
+          "backgroundBorderWidth": 0
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Errors:**
+- `400` — Missing videoId or slideIndexes
+- `500` — OpenAI vision API failure
+
+---
+
+## POST /api/editor/generate-background
+
+Generate a text-free background for a single slide using OpenAI gpt-image-1.
+
+**File:** `src/app/api/editor/generate-background/route.ts`
+
+**Request:**
+```json
+{
+  "videoId": "uuid",
+  "slideIndex": 0,
+  "prompt": "optional custom prompt"
+}
+```
+
+**Response (200):**
+```json
+{
+  "imageUrl": "https://storage.supabase.co/.../backgrounds/uuid.png",
+  "libraryId": "uuid"
+}
+```
+
+**Flow:**
+1. Download original slide image from video's `original_images`
+2. Call OpenAI images.edit with background removal prompt
+3. Strip metadata, resize to 1080x1350
+4. Upload to `backgrounds` bucket
+5. Insert into `background_library` table
+6. Return public URL and library ID
+
+**Errors:**
+- `400` — Missing videoId or slideIndex
+- `500` — OpenAI or storage failure
+
+---
+
+## POST /api/editor/generate-background/batch
+
+Batch generate text-free backgrounds for multiple slides.
+
+**File:** `src/app/api/editor/generate-background/batch/route.ts`
+**Max Duration:** 300s (route-level export)
+
+**Request:**
+```json
+{
+  "videoId": "uuid",
+  "slideIndexes": [0, 1, 2],
+  "prompt": "optional custom prompt"
+}
+```
+
+**Response (200):**
+```json
+{
+  "results": [
+    { "slideIndex": 0, "imageUrl": "url", "libraryId": "uuid" },
+    { "slideIndex": 1, "imageUrl": "url", "libraryId": "uuid" },
+    { "slideIndex": 2, "error": "Failed to generate" }
+  ]
+}
+```
+
+---
+
+## POST /api/editor/export
+
+Export editor slides as a downloadable ZIP. Composites text blocks onto backgrounds using sharp SVG overlay.
+
+**File:** `src/app/api/editor/export/route.ts`
+
+**Export parity features:**
+- Embeds TikTok Sans fonts as base64 `@font-face` in SVG (no server font install needed)
+- Server-side word-wrapping via opentype.js matches canvas layout exactly
+- Per-element compositing in z-order (text blocks and overlays interleaved correctly)
+- Overlay rotation with correct position offset for expanded canvas
+- Shadow blur mapped as `stdDeviation = shadowBlur / 2` to match canvas rendering
+
+**Request:**
+```json
+{
+  "slides": [
+    {
+      "backgroundUrl": "https://storage.url/bg.png",
+      "originalImageUrl": "https://storage.url/original.png",
+      "textBlocks": [
+        {
+          "id": "uuid",
+          "text": "Hello",
+          "x": 10, "y": 40, "width": 80, "height": 20,
+          "fontSize": 48, "fontWeight": 700,
+          "color": "#FFFFFF", "alignment": "center",
+          "hasBorder": false, "borderColor": "#000000", "borderWidth": "medium"
+        }
+      ]
+    }
+  ],
+  "outputFormat": "png",
+  "aspectRatio": "4:5"
+}
+```
+
+`aspectRatio` is optional, defaults to `"4:5"`. Options: `"2:3"` (1080×1620), `"9:16"` (1080×1920), `"4:5"` (1080×1350).
+
+**Response:** Binary ZIP file
+**Content-Type:** `application/zip`
+
+**Errors:**
+- `400` — Missing slides array
+- `500` — Image processing or ZIP creation failure
+
+---
+
+## POST /api/editor/update-generation
+
+Re-render modified editor slides and overwrite their `generated_images` records in the database. Uses the same rendering pipeline as export.
+
+**File:** `src/app/api/editor/update-generation/route.ts`
+
+**Request:**
+```json
+{
+  "setId": "uuid",
+  "slides": [
+    {
+      "editorIndex": 0,
+      "slide": {
+        "backgroundUrl": "https://storage.url/bg.png",
+        "backgroundColor": null,
+        "originalImageUrl": "https://storage.url/original.png",
+        "textBlocks": [...],
+        "overlayImages": [...]
+      }
+    }
+  ],
+  "outputFormat": "png",
+  "aspectRatio": "2:3"
+}
+```
+
+**Response:**
+```json
+{
+  "updated": [
+    { "imageId": "uuid", "imageUrl": "https://storage.url/new.png", "slideIndex": 0 }
+  ]
+}
+```
+
+**Errors:**
+- `400` — Missing setId or slides
+- `404` — No completed images found for the set
+- `500` — Render or upload failure
+
+`maxDuration = 300`
+
+---
+
+## GET /api/editor/save
+
+Load saved editor state. Supports loading by set ID (any status) or by video ID (editor_draft only).
+
+**File:** `src/app/api/editor/save/route.ts`
+
+**Query Params:**
+- `setId` (optional) — Load editor_state from any generation set (any status)
+- `videoId` (optional) — Load editor_draft for this video (original behavior)
+- At least one of `setId` or `videoId` is required. `setId` takes precedence.
+
+**Response (200):**
+```json
+{
+  "setId": "uuid | null",
+  "editorState": "EditorStateJson | null"
+}
+```
+
+---
+
+## PUT /api/editor/save
+
+Save/upsert editor canvas state as an `editor_draft` generation set.
+
+**File:** `src/app/api/editor/save/route.ts`
+
+**Request:**
+```json
+{
+  "videoId": "uuid",
+  "setId": "uuid (optional — update specific row)",
+  "editorState": { "version": 1, "aspectRatio": "4:5", "outputFormat": "png", "slides": [], "originalSlides": [] }
+}
+```
+
+**Response (200):**
+```json
+{
+  "setId": "uuid",
+  "isNew": true
+}
+```
+
+**Errors:**
+- `400` — Missing videoId or editorState
+- `500` — Database error
+
+---
+
+## GET /api/backgrounds
+
+List saved backgrounds from the background library.
+
+**File:** `src/app/api/backgrounds/route.ts`
+
+**Query Params:**
+- `page` — Page number (default: 1)
+- `limit` — Results per page (default: 50)
+
+**Response (200):**
+```json
+{
+  "backgrounds": [
+    {
+      "id": "uuid",
+      "image_url": "https://storage.supabase.co/.../backgrounds/uuid.png",
+      "source": "generated",
+      "prompt": "Remove all text...",
+      "source_video_id": "uuid",
+      "width": 1080,
+      "height": 1350,
+      "created_at": "ISO timestamp"
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "limit": 50,
+  "hasMore": false
+}
+```
+
+## POST /api/backgrounds
+
+Upload a background image to the library.
+
+**File:** `src/app/api/backgrounds/route.ts`
+
+**Request:** `multipart/form-data`
+- `file` — Image file (required)
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "image_url": "https://storage.supabase.co/.../backgrounds/uuid.png",
+  "source": "uploaded",
+  "prompt": null,
+  "source_video_id": null,
+  "width": null,
+  "height": null,
+  "created_at": "ISO timestamp"
+}
+```
+
+---
+
+## DELETE /api/backgrounds/[id]
+
+Delete a background from the library and storage.
+
+**File:** `src/app/api/backgrounds/[id]/route.ts`
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Errors:**
+- `404` — Background not found
+- `500` — Storage or database failure
 
 ---
 

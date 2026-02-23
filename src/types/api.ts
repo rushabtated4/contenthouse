@@ -64,6 +64,7 @@ export interface GenerationSetWithVideo {
   title: string | null;
   set_index: number;
   status: string;
+  review_status: "unverified" | "ready_to_post";
   progress_current: number;
   progress_total: number;
   channel_id: string | null;
@@ -118,6 +119,41 @@ export interface RecentSet {
   created_at: string;
   video_description: string | null;
   thumbnail_url: string | null;
+}
+
+export interface ExtractTextRequest {
+  videoId: string;
+  slideIndexes: number[];
+  aspectRatio?: "2:3" | "9:16" | "4:5";
+}
+
+export interface ExtractTextResponse {
+  slides: import("./editor").ExtractedSlide[];
+}
+
+export interface GenerateBackgroundRequest {
+  videoId: string;
+  slideIndex: number;
+  prompt?: string;
+}
+
+export interface GenerateBackgroundResponse {
+  imageUrl: string;
+  libraryId: string;
+}
+
+export interface GenerateBackgroundBatchRequest {
+  videoId: string;
+  slideIndexes: number[];
+  prompt?: string;
+}
+
+export interface BackgroundsListResponse {
+  backgrounds: import("./editor").BackgroundLibraryItem[];
+  total: number;
+  page: number;
+  limit: number;
+  hasMore: boolean;
 }
 
 export interface ApiError {

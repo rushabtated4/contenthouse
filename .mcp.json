@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+        "RapidAPI Hub - Tiktok API": {
+            "command": "npx",
+            "args": [
+                "mcp-remote",
+                "https://mcp.rapidapi.com",
+                "--header",
+                "x-api-host: tiktok-api23.p.rapidapi.com",
+                "--header",
+                "x-api-key: f6a9ac187cmsh21c4ad8a6ed273fp1001b7jsn670a566fb1f9"
+            ]
+        }
+    }
+}

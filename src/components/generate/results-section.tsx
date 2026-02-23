@@ -6,10 +6,12 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ImageThumbnail } from "@/components/shared/image-thumbnail";
 import { ScheduleControls } from "./schedule-controls";
+import { ReviewStatusBadge } from "@/components/shared/review-status-badge";
 import {
   RefreshCw,
   AlertCircle,
   ImageOff,
+  Pencil,
 } from "lucide-react";
 import type { GenerationSetWithImages } from "@/types/database";
 
@@ -18,6 +20,8 @@ interface ResultsSectionProps {
   originalImages: string[];
   onRetryImage: (imageId: string) => void;
   retryingId: string | null;
+  onEditInEditor?: (setId: string) => void;
+  onRefetch?: () => void;
 }
 
 function statusBadgeVariant(status: string) {
@@ -159,11 +163,15 @@ function SetContent({
   originalImages,
   onRetryImage,
   retryingId,
+  onEditInEditor,
+  onRefetch,
 }: {
   set: GenerationSetWithImages;
   originalImages: string[];
   onRetryImage: (imageId: string) => void;
   retryingId: string | null;
+  onEditInEditor?: (setId: string) => void;
+  onRefetch?: () => void;
 }) {
   const handleDownload = () => {
     downloadSetAsZip(set.id, `carousel_${set.id.slice(0, 8)}.zip`);
@@ -176,13 +184,26 @@ function SetContent({
   return (
     <div className="space-y-4">
       {/* Schedule controls + Download ZIP — directly below tab bar / set heading */}
-      <ScheduleControls
-        setId={set.id}
-        initialChannelId={set.channel_id}
-        initialScheduledAt={set.scheduled_at}
-        initialPostedAt={set.posted_at}
-        onDownload={set.generated_images.some((i) => i.status === "completed") ? handleDownload : undefined}
-      />
+      <div className="flex items-center gap-2 flex-wrap">
+        <ReviewStatusBadge
+          setId={set.id}
+          reviewStatus={set.review_status ?? "unverified"}
+          onToggled={onRefetch}
+        />
+        <ScheduleControls
+          setId={set.id}
+          initialChannelId={set.channel_id}
+          initialScheduledAt={set.scheduled_at}
+          initialPostedAt={set.posted_at}
+          onDownload={set.generated_images.some((i) => i.status === "completed") ? handleDownload : undefined}
+        />
+        {onEditInEditor && set.generated_images.some((i) => i.status === "completed") && (
+          <Button variant="outline" size="sm" onClick={() => onEditInEditor(set.id)}>
+            <Pencil className="w-3.5 h-3.5" />
+            Edit in Editor
+          </Button>
+        )}
+      </div>
 
       {/* Comparison grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -211,6 +232,8 @@ export function ResultsSection({
   originalImages,
   onRetryImage,
   retryingId,
+  onEditInEditor,
+  onRefetch,
 }: ResultsSectionProps) {
   if (sets.length === 0) {
     return (
@@ -230,6 +253,8 @@ export function ResultsSection({
           originalImages={originalImages}
           onRetryImage={onRetryImage}
           retryingId={retryingId}
+          onEditInEditor={onEditInEditor}
+          onRefetch={onRefetch}
         />
       </div>
     );
@@ -259,6 +284,8 @@ export function ResultsSection({
               originalImages={originalImages}
               onRetryImage={onRetryImage}
               retryingId={retryingId}
+              onEditInEditor={onEditInEditor}
+              onRefetch={onRefetch}
             />
           </TabsContent>
         ))}

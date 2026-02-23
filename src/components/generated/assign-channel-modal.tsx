@@ -34,7 +34,6 @@ interface Props {
 export function AssignChannelModal({ open, set, onClose, onSaved }: Props) {
   const [accounts, setAccounts] = useState<ProjectAccount[]>([]);
   const [channelId, setChannelId] = useState<string>("");
-  const [scheduledAt, setScheduledAt] = useState<string>("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -47,12 +46,6 @@ export function AssignChannelModal({ open, set, onClose, onSaved }: Props) {
   useEffect(() => {
     if (!set) return;
     setChannelId(set.channel_id ?? "");
-    if (set.scheduled_at) {
-      // datetime-local input expects "YYYY-MM-DDTHH:MM"
-      setScheduledAt(set.scheduled_at.slice(0, 16));
-    } else {
-      setScheduledAt("");
-    }
   }, [set]);
 
   async function handleSave() {
@@ -65,7 +58,7 @@ export function AssignChannelModal({ open, set, onClose, onSaved }: Props) {
         body: JSON.stringify({
           setId: set.id,
           channelId: channelId || null,
-          scheduledAt: scheduledAt ? new Date(scheduledAt).toISOString() : null,
+          scheduledAt: null,
           notes: null,
         }),
       });
@@ -101,7 +94,7 @@ export function AssignChannelModal({ open, set, onClose, onSaved }: Props) {
     <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Assign Channel &amp; Schedule</DialogTitle>
+          <DialogTitle>Assign Channel</DialogTitle>
         </DialogHeader>
 
         <div className="space-y-4 py-2">
@@ -120,16 +113,6 @@ export function AssignChannelModal({ open, set, onClose, onSaved }: Props) {
                 ))}
               </SelectContent>
             </Select>
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-sm font-medium text-foreground">Date &amp; Time</label>
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className="flex h-9 w-full rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
-            />
           </div>
         </div>
 

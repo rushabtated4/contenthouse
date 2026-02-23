@@ -18,7 +18,8 @@ export async function GET() {
     ] = await Promise.all([
       supabase
         .from("generation_sets")
-        .select("*", { count: "exact", head: true }),
+        .select("*", { count: "exact", head: true })
+        .neq("status", "editor_draft"),
       supabase
         .from("generation_sets")
         .select("*", { count: "exact", head: true })
@@ -42,7 +43,8 @@ export async function GET() {
       supabase
         .from("generation_sets")
         .select("channel_id, status, scheduled_at, posted_at")
-        .not("channel_id", "is", null),
+        .not("channel_id", "is", null)
+        .neq("status", "editor_draft"),
       supabase
         .from("project_accounts")
         .select("id, username, nickname"),

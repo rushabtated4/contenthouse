@@ -50,7 +50,8 @@ POST /api/generate  { videoId, selectedSlides, prompts, quality, numSets }
         │               └─ INSERT generated_images (set_id, slide_index, per_slide_prompt, overlay_url, status="pending")
         │
         ├─► For each set:
-        │       └─ fetch("/api/queue", { setId, batchStart: 0 })  ← fire-and-forget
+        │       └─ after(): processBatch(set.id, 0) directly; if hasMore, chain to /api/queue
+        │           └─ On error: mark set status="failed" to prevent stuck "processing"
         │
         └─► Return { batchId, sets }
                 │
@@ -105,6 +106,10 @@ POST /api/queue  { setId, batchStart: 0 }
         │
         ├─► If more images remain:
         │       └─ fetch("/api/queue", { setId, batchStart: batchStart + 5 })  ← self-chain
+        │           └─ On chain failure: mark set status="failed"
+        │
+        ├─► On unrecoverable error (null video_id, missing images):
+        │       └─ failSet(): mark pending/generating images as failed, then finalizeSet()
         │
         └─► If done:
                 └─ Compute final status:

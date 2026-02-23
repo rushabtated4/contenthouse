@@ -85,7 +85,9 @@ export interface GenerationSet {
   quality_output: string;
   output_format: string;
   selected_slides: number[] | null;
-  status: "queued" | "processing" | "completed" | "partial" | "failed";
+  editor_state: import("@/types/editor").EditorStateJson | null;
+  status: "queued" | "processing" | "completed" | "partial" | "failed" | "editor_draft";
+  review_status: "unverified" | "ready_to_post";
   progress_current: number;
   progress_total: number;
   channel_id: string | null;

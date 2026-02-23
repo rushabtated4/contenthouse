@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
 
-type BucketName = "originals" | "generated" | "overlays";
+type BucketName = "originals" | "generated" | "overlays" | "backgrounds";
 
 interface UploadResult {
   url: string;

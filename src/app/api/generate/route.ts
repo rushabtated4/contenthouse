@@ -87,6 +87,13 @@ export async function POST(request: NextRequest) {
           }
         } catch (err) {
           console.error(`Processing failed for set ${set.id}:`, err);
+          // Ensure the set doesn't stay stuck at "processing"
+          const sb = createServerClient();
+          await sb
+            .from("generation_sets")
+            .update({ status: "failed", updated_at: new Date().toISOString() })
+            .eq("id", set.id)
+            .in("status", ["queued", "processing"]);
         }
       });
     }

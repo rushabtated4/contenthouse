@@ -11,6 +11,9 @@
 - `supabase/migrations/004_nullable_video_id.sql` — Make `video_id` nullable, add `title` column
 - `supabase/migrations/005_add_projects_table.sql` — Document `projects` table and `project_accounts` FK
 - `supabase/migrations/006_account_posting_schedule.sql` — Add `days_of_week`, `posts_per_day` to `project_accounts`
+- `supabase/migrations/007_background_library.sql` — Add `background_library` table + `backgrounds` storage bucket + indexes
+- `supabase/migrations/008_editor_state.sql` — Add `editor_state` JSONB column to `generation_sets`
+- `supabase/migrations/009_review_status.sql` — Add `review_status` column to `generation_sets`
 
 ---
 
@@ -90,11 +93,13 @@ A set of AI-generated variations for selected slides of a carousel.
 | `batch_id` | uuid | NO | — | Groups multiple sets created together |
 | `first_slide_prompt` | text | YES | — | Prompt used for slide index 0 |
 | `other_slides_prompt` | text | YES | — | Prompt used for all other slides |
-| `quality_input` | text | NO | `'low'` | OpenAI input detail: `low` / `high` |
+| `quality_input` | text | NO | `'high'` | OpenAI input detail: `low` / `high` |
 | `quality_output` | text | NO | `'medium'` | OpenAI output quality: `low` / `medium` / `high` |
-| `output_format` | text | NO | `'jpeg'` | Output format: `png` / `jpeg` / `webp` |
+| `output_format` | text | NO | `'png'` | Output format: `png` / `jpeg` / `webp` |
 | `selected_slides` | integer[] | YES | — | Array of slide indices to generate |
-| `status` | text | NO | `'queued'` | `queued` / `processing` / `completed` / `partial` / `failed` |
+| `editor_state` | jsonb | YES | — | Saved editor canvas state (EditorStateJson) |
+| `status` | text | NO | `'queued'` | `queued` / `processing` / `completed` / `partial` / `failed` / `editor_draft` |
+| `review_status` | text | NO | `'unverified'` | `unverified` / `ready_to_post` |
 | `progress_current` | integer | NO | `0` | Images processed so far |
 | `progress_total` | integer | NO | `0` | Total images to process |
 | `channel_id` | uuid | YES | — | FK → `project_accounts.id` (scheduling) |
@@ -112,6 +117,7 @@ A set of AI-generated variations for selected slides of a carousel.
 - `idx_generation_sets_scheduled` on `scheduled_at` WHERE `scheduled_at IS NOT NULL`
 - `idx_generation_sets_channel` on `channel_id` WHERE `channel_id IS NOT NULL`
 - `idx_generation_sets_posted` on `posted_at` WHERE `posted_at IS NOT NULL`
+- `idx_generation_sets_review_status` on `review_status`
 
 ---
 
@@ -137,6 +143,28 @@ Individual AI-generated image records, one per slide per set.
 
 ---
 
+### `background_library` (new)
+
+Saved background images for the editor mode. Backgrounds can be AI-generated (text removed) or user-uploaded.
+
+| Column | Type | Nullable | Default | Description |
+|---|---|---|---|---|
+| `id` | uuid | NO | `gen_random_uuid()` | Primary key |
+| `image_url` | text | NO | — | Supabase Storage URL in `backgrounds` bucket |
+| `source` | text | NO | — | `'generated'` or `'uploaded'` |
+| `prompt` | text | YES | — | Prompt used for generation (null for uploads) |
+| `source_video_id` | uuid | YES | — | FK → `videos.id` (which video this bg was generated from) |
+| `width` | integer | YES | — | Image width in pixels |
+| `height` | integer | YES | — | Image height in pixels |
+| `created_at` | timestamptz | NO | `now()` | Record creation |
+
+**Indexes:**
+- PK on `id`
+- `idx_background_library_created_at` on `created_at DESC`
+- `idx_background_library_source_video` on `source_video_id`
+
+---
+
 ## Relationships
 
 ```
@@ -152,6 +180,8 @@ videos
   │       │
   │       └──< generated_images.set_id (CASCADE delete)
   │
+  ├──< background_library.source_video_id
+  │
   └── videos.account_id >── project_accounts
 ```
 
@@ -164,8 +194,9 @@ videos
 | `originals` | Downloaded TikTok carousel images | `{videoId}/{uuid}.png` | Manual |
 | `generated` | AI-generated variation images | `{setId}/{uuid}.{format}` | Manual |
 | `overlays` | User-uploaded overlay images | `{uuid}.png` | Manual |
+| `backgrounds` | Editor background images (generated/uploaded) | `{uuid}.png` | Manual (or via DELETE /api/backgrounds/[id]) |
 
-All buckets have public read access. Uploads use `upsert: true`.
+All buckets have public read access. Uploads use `upsert: false` (UUID filenames ensure uniqueness).
 
 ---
 

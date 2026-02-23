@@ -87,6 +87,43 @@
   --sidebar-ring: #E8825F;
 }
 
+/* TikTok Sans font faces for editor canvas */
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/fonts/TikTokSans-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/fonts/TikTokSans-Medium.ttf") format("truetype");
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/fonts/TikTokSans-Bold.ttf") format("truetype");
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/fonts/TikTokSans-Bold.ttf") format("truetype");
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "TikTok Sans";
+  src: url("/fonts/TikTokSans-ExtraBold.ttf") format("truetype");
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

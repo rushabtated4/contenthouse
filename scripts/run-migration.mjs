@@ -47,6 +47,13 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_generation_sets_scheduled ON generation_sets(scheduled_at) WHERE scheduled_at IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_generation_sets_channel ON generation_sets(channel_id) WHERE channel_id IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_generated_images_set_status ON generated_images(set_id, status)`,
+
+  // Migration 008: editor_state
+  `ALTER TABLE generation_sets ADD COLUMN IF NOT EXISTS editor_state jsonb`,
+
+  // Migration 009: review_status
+  `ALTER TABLE generation_sets ADD COLUMN IF NOT EXISTS review_status text NOT NULL DEFAULT 'unverified'`,
+  `CREATE INDEX IF NOT EXISTS idx_generation_sets_review_status ON generation_sets(review_status)`,
 ];
 
 console.log("Running migration...");
@@ -63,7 +70,7 @@ for (const sql of statements) {
 }
 
 // Storage buckets
-for (const bucket of ["originals", "generated", "overlays"]) {
+for (const bucket of ["originals", "generated", "overlays", "backgrounds"]) {
   const { error } = await supabase.storage.createBucket(bucket, {
     public: true,
   });

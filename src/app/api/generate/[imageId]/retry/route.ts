@@ -5,6 +5,8 @@ import { stripMetadataAndResize } from "@/lib/metadata/strip";
 import { uploadToStorage } from "@/lib/storage/upload";
 import { downloadImage } from "@/lib/storage/download";
 
+export const maxDuration = 300;
+
 export async function POST(
   _request: NextRequest,
   { params }: { params: Promise<{ imageId: string }> }

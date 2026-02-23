@@ -8,6 +8,8 @@ import { GenerationProgress } from "@/components/generate/generation-progress";
 import { ResultsSection } from "@/components/generate/results-section";
 import { GeneratePageSkeleton } from "@/components/shared/loading-skeleton";
 import { ErrorState } from "@/components/shared/error-state";
+import { CarouselEditor } from "@/components/editor/carousel-editor";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useVideo } from "@/hooks/use-video";
 import { toast } from "sonner";
 import { createClient } from "@/lib/supabase/client";
@@ -43,6 +45,8 @@ export default function GenerateDetailPage({
   const [generationError, setGenerationError] = useState<string | null>(null);
   const [retryingId, setRetryingId] = useState<string | null>(null);
   const [initialized, setInitialized] = useState(false);
+  const [activeTab, setActiveTab] = useState("quick");
+  const [editorSetId, setEditorSetId] = useState<string | null>(null);
 
   if (video && !initialized) {
     if (video.original_images) {
@@ -144,6 +148,11 @@ export default function GenerateDetailPage({
     setPerSlideOverlays((prev) => ({ ...prev, [index]: null }));
   };
 
+  const handleEditInEditor = (setId: string) => {
+    setEditorSetId(setId);
+    setActiveTab("editor");
+  };
+
   if (loading) {
     return <GeneratePageSkeleton />;
   }
@@ -156,50 +165,65 @@ export default function GenerateDetailPage({
     <div className="space-y-6">
       <VideoMetaBar video={video} />
 
-      {video.original_images && video.original_images.length > 0 ? (
-        <SlideFilmstrip
-          images={video.original_images}
-          selectedSlides={selectedSlides}
-          perSlidePrompts={perSlidePrompts}
-          perSlideOverlays={perSlideOverlays}
-          onToggleSlide={handleToggleSlide}
-          onPromptChange={(i, p) =>
-            setPerSlidePrompts((prev) => ({ ...prev, [i]: p }))
-          }
-          onOverlayUpload={handleOverlayUpload}
-          onOverlaySelect={handleOverlaySelect}
-          onOverlayRemove={handleOverlayRemove}
-        />
-      ) : (
-        <p className="text-sm text-muted-foreground">No original slides</p>
-      )}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="quick">Quick Generate</TabsTrigger>
+          <TabsTrigger value="editor">Editor Mode</TabsTrigger>
+        </TabsList>
 
-      <GlobalControls
-        firstSlidePrompt={firstSlidePrompt}
-        otherSlidesPrompt={otherSlidesPrompt}
-        qualityInput={qualityInput}
-        qualityOutput={qualityOutput}
-        numSets={numSets}
-        outputFormat={outputFormat}
-        isGenerating={isGenerating}
-        canGenerate={selectedSlides.size > 0}
-        onFirstPromptChange={setFirstSlidePrompt}
-        onOtherPromptChange={setOtherSlidesPrompt}
-        onQualityInputChange={setQualityInput}
-        onQualityOutputChange={setQualityOutput}
-        onNumSetsChange={setNumSets}
-        onOutputFormatChange={setOutputFormat}
-        onGenerate={handleGenerate}
-      />
+        <TabsContent value="quick" className="space-y-6 mt-4">
+          {video.original_images && video.original_images.length > 0 ? (
+            <SlideFilmstrip
+              images={video.original_images}
+              selectedSlides={selectedSlides}
+              perSlidePrompts={perSlidePrompts}
+              perSlideOverlays={perSlideOverlays}
+              onToggleSlide={handleToggleSlide}
+              onPromptChange={(i, p) =>
+                setPerSlidePrompts((prev) => ({ ...prev, [i]: p }))
+              }
+              onOverlayUpload={handleOverlayUpload}
+              onOverlaySelect={handleOverlaySelect}
+              onOverlayRemove={handleOverlayRemove}
+            />
+          ) : (
+            <p className="text-sm text-muted-foreground">No original slides</p>
+          )}
 
-      <GenerationProgress batchId={batchId} error={generationError} />
+          <GlobalControls
+            firstSlidePrompt={firstSlidePrompt}
+            otherSlidesPrompt={otherSlidesPrompt}
+            qualityInput={qualityInput}
+            qualityOutput={qualityOutput}
+            numSets={numSets}
+            outputFormat={outputFormat}
+            isGenerating={isGenerating}
+            canGenerate={selectedSlides.size > 0}
+            onFirstPromptChange={setFirstSlidePrompt}
+            onOtherPromptChange={setOtherSlidesPrompt}
+            onQualityInputChange={setQualityInput}
+            onQualityOutputChange={setQualityOutput}
+            onNumSetsChange={setNumSets}
+            onOutputFormatChange={setOutputFormat}
+            onGenerate={handleGenerate}
+          />
 
-      <ResultsSection
-        sets={video.generation_sets || []}
-        originalImages={video.original_images || []}
-        onRetryImage={handleRetryImage}
-        retryingId={retryingId}
-      />
+          <GenerationProgress batchId={batchId} error={generationError} />
+
+          <ResultsSection
+            sets={video.generation_sets || []}
+            originalImages={video.original_images || []}
+            onRetryImage={handleRetryImage}
+            retryingId={retryingId}
+            onEditInEditor={handleEditInEditor}
+            onRefetch={refetch}
+          />
+        </TabsContent>
+
+        <TabsContent value="editor" className="mt-4">
+          <CarouselEditor video={video} editorSetId={editorSetId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

@@ -12,7 +12,10 @@ ContentHouse is a single-user TikTok carousel replication tool built with Next.j
 | Tailwind CSS v4 + shadcn/ui | UI styling & components |
 | Supabase (Postgres) | Database & file storage |
 | Supabase Realtime | Live generation progress |
-| OpenAI gpt-image-1 | AI image generation |
+| OpenAI gpt-image-1.5 | AI image generation |
+| OpenAI GPT-5.2 | Vision text extraction (editor, structured output) |
+| Zustand | Client-side state management (editor) |
+| react-konva + konva | Canvas rendering (editor) |
 | RapidAPI tiktok-api23 | TikTok data fetching |
 | FullCalendar v6 | Calendar scheduling UI |
 | sharp | Image processing & metadata stripping |
@@ -29,7 +32,9 @@ contenthouse/
 ├── components.json                   # shadcn/ui config
 ├── supabase/
 │   └── migrations/
-│       └── 001_contenthouse_schema.sql  # Full DB migration
+│       ├── 001_contenthouse_schema.sql  # Full DB migration
+│       ├── 008_editor_state.sql        # Editor state JSONB column
+│       └── 009_review_status.sql       # Review status column
 ├── scripts/
 │   └── run-migration.mjs            # Migration runner script
 ├── src/
@@ -61,7 +66,16 @@ contenthouse/
 │   │       ├── projects/route.ts         # GET: List projects with accounts
 │   │       ├── project-accounts/route.ts  # GET: List channels with project
 │   │       ├── stats/route.ts        # GET: Enhanced analytics summary
-│   │       └── queue/route.ts        # POST: Queue batch processor
+│   │       ├── queue/route.ts        # POST: Queue batch processor
+│   │       ├── editor/
+│   │       │   ├── extract-text/route.ts      # POST: GPT-5.2 text extraction
+│   │       │   ├── generate-background/
+│   │       │   │   ├── route.ts               # POST: Single bg generation
+│   │       │   │   └── batch/route.ts         # POST: Batch bg generation
+│   │       │   └── export/route.ts            # POST: Export slides as ZIP
+│   │       └── backgrounds/
+│   │           ├── route.ts           # GET/POST: List/upload backgrounds
+│   │           └── [id]/route.ts      # DELETE: Remove background
 │   ├── lib/
 │   │   ├── supabase/
 │   │   │   ├── client.ts             # Browser Supabase client
@@ -82,9 +96,13 @@ contenthouse/
 │   │   ├── queue/
 │   │   │   ├── processor.ts          # Batch image processing logic
 │   │   │   └── rate-limiter.ts       # Token-bucket rate limiter (~5 RPM)
+│   │   ├── editor/
+│   │   │   └── defaults.ts           # Editor constants (prompts, canvas size, fonts)
 │   │   ├── utils/
 │   │   │   └── format.ts             # Number formatting, cost estimation
 │   │   └── utils.ts                  # shadcn cn() utility
+│   ├── stores/
+│   │   └── editor-store.ts           # Zustand store for editor state
 │   ├── components/
 │   │   ├── ui/                       # shadcn/ui primitives (18 components)
 │   │   ├── layout/
@@ -116,6 +134,16 @@ contenthouse/
 │   │   │   ├── calendar-view.tsx      # Calendar/list toggle + filter tabs
 │   │   │   ├── fullcalendar-wrapper.tsx # FullCalendar with custom event content
 │   │   │   └── schedule-list.tsx      # List view with mark-as-done buttons
+│   │   ├── editor/
+│   │   │   ├── carousel-editor.tsx        # Top-level editor component
+│   │   │   ├── editor-filmstrip.tsx       # Slide thumbnails strip
+│   │   │   ├── editor-toolbar.tsx         # Extract/Generate/Download buttons
+│   │   │   ├── editor-canvas.tsx          # Konva Stage/Layer (bg + text)
+│   │   │   ├── canvas-text-block.tsx      # Draggable text blocks on canvas
+│   │   │   ├── canvas-background.tsx      # Background image layer
+│   │   │   ├── text-properties-panel.tsx  # Font, color, alignment controls
+│   │   │   ├── background-controls.tsx    # BG prompt, regenerate, upload, library
+│   │   │   └── background-library-dialog.tsx # Grid of saved backgrounds
 │   │   ├── accounts/
 │   │   │   └── account-list.tsx       # Project accounts list (read-only)
 │   │   └── shared/
@@ -132,10 +160,12 @@ contenthouse/
 │   │   ├── use-scheduled-events.ts   # Fetch calendar events (with posted status)
 │   │   ├── use-dashboard-stats.ts    # Fetch enhanced dashboard stats
 │   │   ├── use-generated-sets.ts     # Fetch generation sets with filters
+│   │   ├── use-backgrounds.ts       # Background library data fetching
 │   │   └── use-mobile.ts            # shadcn mobile detection hook
 │   └── types/
 │       ├── database.ts               # TypeScript types for all tables
-│       └── api.ts                    # Request/response types for API routes
+│       ├── api.ts                    # Request/response types for API routes
+│       └── editor.ts                 # Editor types (TextBlock, EditorSlide, etc.)
 ```
 
 ## Database Schema
@@ -149,6 +179,7 @@ contenthouse/
 | `project_accounts` | Existing | Scheduling channels, grouped by project |
 | `generation_sets` | New | Generation config, progress, scheduling |
 | `generated_images` | New | Individual generated image records |
+| `background_library` | New | Saved backgrounds for editor mode |
 
 ### Storage Buckets
 
@@ -157,6 +188,7 @@ contenthouse/
 | `originals` | Fetched TikTok carousel images |
 | `generated` | AI-generated images (metadata stripped) |
 | `overlays` | User-uploaded overlay images |
+| `backgrounds` | Editor background images (generated/uploaded) |
 
 ### Relationships
 
@@ -165,9 +197,10 @@ projects
   └── project_accounts.project_id → projects.id
 
 videos (existing)
-  └── generation_sets.video_id → videos.id
-        ├── generation_sets.channel_id → project_accounts.id
-        └── generated_images.set_id → generation_sets.id
+  ├── generation_sets.video_id → videos.id
+  │     ├── generation_sets.channel_id → project_accounts.id
+  │     └── generated_images.set_id → generation_sets.id
+  └── background_library.source_video_id → videos.id
 ```
 
 ## API Routes
@@ -181,11 +214,18 @@ videos (existing)
 | `/api/generate/[imageId]/retry` | POST | Retry single failed image |
 | `/api/images/[setId]/download` | GET | ZIP download of completed set |
 | `/api/schedule` | GET/POST/PUT/PATCH/DELETE | CRUD scheduling + mark as posted |
-| `/api/generation-sets` | GET | List generation sets with filters/pagination |
+| `/api/generation-sets` | GET/PATCH | List generation sets; update review status |
 | `/api/projects` | GET | List projects with nested accounts |
 | `/api/project-accounts` | GET | List channels with nested project |
 | `/api/stats` | GET | Enhanced analytics summary |
 | `/api/queue` | POST | Batch processor (self-chaining) |
+| `/api/editor/extract-text` | POST | Extract text from slides via GPT-5.2 |
+| `/api/editor/generate-background` | POST | Generate text-free background |
+| `/api/editor/generate-background/batch` | POST | Batch generate backgrounds |
+| `/api/editor/export` | POST | Export editor slides as ZIP |
+| `/api/editor/update-generation` | POST | Re-render dirty slides & overwrite generated_images |
+| `/api/backgrounds` | GET/POST | List/upload backgrounds |
+| `/api/backgrounds/[id]` | DELETE | Delete background |
 
 ## Queue Architecture
 

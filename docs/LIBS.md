@@ -118,7 +118,7 @@ Upload files to Supabase Storage.
 
 ```typescript
 async function uploadToStorage(
-  bucket: "originals" | "generated" | "overlays",
+  bucket: "originals" | "generated" | "overlays" | "backgrounds",
   buffer: Buffer,
   fileExtension: string,    // "png", "jpeg", "webp"
   folder?: string           // Optional subfolder (e.g., setId or videoId)
@@ -131,7 +131,7 @@ async function uploadToStorage(
 **Details:**
 - Auto-generates UUID filenames
 - Sets Content-Type based on extension
-- Uses `upsert: true`
+- Uses `upsert: false` (UUID filenames ensure uniqueness)
 
 ## lib/storage/download.ts
 
@@ -147,7 +147,7 @@ Supports Supabase Storage URLs, TikTok CDN URLs, and any HTTPS URL.
 
 ## lib/metadata/strip.ts
 
-Strip AI provenance metadata and resize to TikTok dimensions.
+Strip AI provenance metadata from images. Does **not** resize — preserves original dimensions.
 
 ```typescript
 async function stripMetadataAndResize(params: {
@@ -157,12 +157,13 @@ async function stripMetadataAndResize(params: {
 ```
 
 **Processing:**
-1. Resize to **1080x1350** (TikTok carousel standard, 4:5 ratio)
-2. Remove all EXIF, XMP, C2PA, Synth ID metadata
-3. Format-specific handling:
-   - **PNG:** quality 100, keep alpha
-   - **JPEG:** quality 95, mozjpeg optimization, flatten alpha
+1. Remove all EXIF, XMP, C2PA, Synth ID metadata (sharp strips by default when `.withMetadata()` is not called)
+2. Format-specific handling:
+   - **PNG:** quality 90, keep alpha
+   - **JPEG:** quality 95, mozjpeg optimization, remove alpha
    - **WebP:** quality 95, keep alpha
+
+**Note:** Resizing to 1080x1350 happens in `lib/queue/processor.ts` during the generation pipeline, not in this function.
 
 ---
 
@@ -201,7 +202,7 @@ class RateLimiter {
   async acquire(): Promise<void>;  // Blocks until a token is available
 }
 
-function getRateLimiter(): RateLimiter  // Singleton: 5 tokens, 1 token/12s
+function getRateLimiter(): RateLimiter  // Singleton: 50 requests/minute
 ```
 
 ---
@@ -250,6 +251,129 @@ function cn(...inputs: ClassValue[]): string
 
 ---
 
+## lib/editor/segment-layout.ts
+
+Layout algorithm and markdown helpers for mixed-bold text segments.
+
+```typescript
+interface LayoutWord { text: string; bold: boolean; x: number; width: number }
+interface LayoutLine { words: LayoutWord[]; width: number; y: number }
+
+function computeSegmentLayout(
+  segments: TextSegment[],
+  maxWidth: number,
+  fontSize: number,
+  fontFamily: string,
+  fontWeight: number,
+  lineHeight: number,
+  letterSpacing: number,
+  alignment: "left" | "center" | "right",
+  ctx: CanvasRenderingContext2D
+): LayoutLine[]
+// Word-wraps segments with per-word bold measurement, applies alignment offsets
+
+function segmentsToMarkdown(segments: TextSegment[]): string
+// Converts segments to markdown text with **bold** markers
+
+function markdownToSegments(text: string): TextSegment[]
+// Parses **bold** markers back into TextSegment array
+```
+
+---
+
+## lib/editor/server-font.ts
+
+Server-side font utilities for export parity. Uses opentype.js to load TikTok Sans fonts and measure text server-side.
+
+```typescript
+function loadFont(weight: number): opentype.Font
+// Loads TikTok Sans TTF for given weight (400/500/700/800). Cached in module scope.
+
+function measureText(text: string, fontSize: number, font: opentype.Font, letterSpacing?: number): number
+// Measures string width using opentype.js font metrics. Accounts for kerning and letter-spacing.
+
+function getFontBase64Css(): string
+// Returns <style> block with @font-face declarations using base64 data URIs for all 4 weights.
+// Suitable for embedding in SVG so sharp/libvips renders with the correct font.
+```
+
+**Dependencies:** `opentype.js`, font files at `public/fonts/TikTokSans-*.ttf`
+
+---
+
+## lib/editor/server-segment-layout.ts
+
+Server-side port of `computeSegmentLayout` for export. Uses opentype.js instead of CanvasRenderingContext2D.
+
+```typescript
+function serverComputeSegmentLayout(
+  segments: TextSegment[],
+  maxWidth: number,
+  fontSize: number,
+  fontWeight: number,
+  lineHeight: number,
+  letterSpacing: number,
+  alignment: "left" | "center" | "right"
+): LayoutLine[]
+// Word-wraps segments with per-word bold measurement using opentype.js.
+// Same algorithm as client-side computeSegmentLayout.
+```
+
+Re-exports `LayoutLine` and `LayoutWord` types from `segment-layout.ts`.
+
+---
+
+## lib/editor/render-slide.ts
+
+Shared server-side slide rendering used by both export and update-generation routes.
+
+```typescript
+function escapeXml(str: string): string
+function hexToRgb(hex: string): { r: number; g: number; b: number }
+function applyTextTransform(text: string, transform: TextBlock["textTransform"]): string
+function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): string
+async function processOverlay(overlay: OverlayImage, canvasHeight: number): Promise<{ buffer: Buffer; top: number; left: number } | null>
+async function renderSlide(slide: SlideInput, outputFormat: "png" | "jpeg" | "webp", aspectRatio: AspectRatio): Promise<Buffer | null>
+// Renders a single editor slide (background + text blocks + overlays) to an image buffer
+```
+
+---
+
+## lib/editor/defaults.ts
+
+Editor constants and default values for the canvas editor.
+
+```typescript
+import type { TextBlock, OverlayImage } from "@/types/editor";
+
+const DEFAULT_BG_PROMPT: string
+// Default prompt for generating text-free backgrounds via OpenAI
+
+const DEFAULT_TEXT_BLOCK: Omit<TextBlock, "id">
+// Default text block properties: centered, white, 48px, bold, zIndex 0
+
+const DEFAULT_OVERLAY_IMAGE: Omit<OverlayImage, "id">
+// Default overlay: x:20, y:20, width:30, height:30, rotation:0, opacity:1, cornerRadius:0, zIndex:100
+
+const MAX_HISTORY = 50  // max undo/redo steps
+
+const CANVAS_WIDTH = 1080
+const CANVAS_HEIGHT = 1350
+const FONT_FAMILY = "TikTok Sans"
+
+type AspectRatio = "2:3" | "9:16" | "4:5"
+const ASPECT_RATIOS: Record<AspectRatio, { width: number; height: number; label: string }>
+// 2:3 → 1080×1620, 9:16 → 1080×1920, 4:5 → 1080×1350
+
+const SNAP_THRESHOLD = 10  // px proximity for auto-snap guides
+
+const BLOCK_PADDING = 20   // px at 1080 canvas scale, padding inside background pill
+const BLOCK_CORNER_RADIUS = 16  // px at 1080 canvas scale, rounded corners
+
+```
+
+---
+
 ## lib/defaults.ts
 
 Default values for generation settings. Can be overridden via environment variables.
@@ -294,3 +418,67 @@ const { history, savePrompt, deletePrompt } = usePromptHistory();
 ```
 
 Storage key: `ch:prompt-history`. Used by `PromptTextarea`.
+
+---
+
+## lib/client/download-zip.ts
+
+Client-side ZIP download utility using fflate. Downloads images directly from CDN in the browser (faster than server-side route).
+
+```typescript
+async function downloadSetAsZip(setId: string, filename: string): Promise<void>
+// Fetches image URLs from /api/images/{setId}/download?urls=1,
+// downloads all in parallel from CDN, creates ZIP with fflate,
+// triggers browser download
+
+function formatDateForFilename(dateStr: string): string
+// "2026-02-20T10:00:00.000Z" → "2026-02-20"
+
+function sanitizeFilename(name: string): string
+// Replaces special characters and spaces with underscores
+```
+
+**Dependency:** `fflate` (browser-side ZIP creation)
+
+---
+
+## hooks/use-mobile.ts
+
+Responsive breakpoint hook.
+
+```typescript
+function useIsMobile(): boolean
+// Returns true when viewport width < 768px
+// Uses window.matchMedia for efficient change detection
+```
+
+Used by sidebar and other layout components for responsive behavior.
+
+---
+
+## hooks/use-account-overview.ts
+
+Account scheduling overview with week grid computation.
+
+```typescript
+function useAccountOverview(): {
+  projects: ProjectWithAccounts[];
+  scheduledSets: ScheduledSetSummary[];
+  loading: boolean;
+  mutate: () => Promise<void>;
+}
+
+function computeWeekGrid(
+  account: ProjectAccount,
+  scheduledSets: ScheduledSetSummary[],
+  weeks?: number
+): WeekRow[]
+
+function computeSlots(
+  account: ProjectAccount,
+  scheduledSets: ScheduledSetSummary[],
+  weeks?: number
+): PostingSlot[]
+```
+
+Fetches projects and schedule data, computes posting slot grids for account schedule cards.

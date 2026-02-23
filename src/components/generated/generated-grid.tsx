@@ -15,9 +15,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { LayoutGrid, List, Trash2, X } from "lucide-react";
+import { LayoutGrid, List, Trash2, X, CheckCircle2 } from "lucide-react";
 import { toast } from "sonner";
+import { ReviewStatusBadge } from "@/components/shared/review-status-badge";
 import type { GenerationSetWithVideo } from "@/types/api";
+
+const REVIEW_TABS = [
+  { label: "All", value: "all" },
+  { label: "Unverified", value: "unverified" },
+  { label: "Ready to post", value: "ready_to_post" },
+];
 
 const STATUS_TABS = [
   { label: "All", value: "all" },
@@ -100,6 +107,7 @@ function TableView({ sets, selected, onToggle, onToggleAll, refetch, onAssign }:
             <th className="text-left font-medium px-4 py-2.5">Description</th>
             <th className="text-center font-medium px-3 py-2.5">Slides</th>
             <th className="text-center font-medium px-3 py-2.5">Status</th>
+            <th className="text-center font-medium px-3 py-2.5">Review</th>
             <th className="text-center font-medium px-3 py-2.5">Account</th>
             <th className="text-center font-medium px-3 py-2.5">Schedule</th>
             <th className="text-right font-medium px-4 py-2.5">Created</th>
@@ -175,6 +183,9 @@ function TableView({ sets, selected, onToggle, onToggleAll, refetch, onAssign }:
                   </Badge>
                 </td>
                 <td className="text-center px-3 py-2.5">
+                  <ReviewStatusBadge setId={set.id} reviewStatus={set.review_status ?? "unverified"} onToggled={refetch} />
+                </td>
+                <td className="text-center px-3 py-2.5">
                   {set.channel ? (
                     <button
                       onClick={(e) => { e.stopPropagation(); onAssign(set); }}
@@ -229,6 +240,7 @@ function TableView({ sets, selected, onToggle, onToggleAll, refetch, onAssign }:
 
 export function GeneratedGrid() {
   const [status, setStatus] = useState("completed");
+  const [reviewStatus, setReviewStatus] = useState("all");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [viewMode, setViewMode] = useState<"grid" | "table">("table");
@@ -239,6 +251,7 @@ export function GeneratedGrid() {
 
   const { sets, total, hasMore, loading, refetch } = useGeneratedSets({
     status,
+    reviewStatus,
     sort,
     page,
     limit,
@@ -347,18 +360,35 @@ export function GeneratedGrid() {
       </div>
 
       <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-1">
-          {STATUS_TABS.map((tab) => (
-            <Button
-              key={tab.value}
-              size="sm"
-              variant={status === tab.value ? "default" : "ghost"}
-              onClick={() => handleStatusChange(tab.value)}
-              className="text-xs"
-            >
-              {tab.label}
-            </Button>
-          ))}
+        <div className="flex items-center gap-3">
+          <div className="flex gap-1">
+            {STATUS_TABS.map((tab) => (
+              <Button
+                key={tab.value}
+                size="sm"
+                variant={status === tab.value ? "default" : "ghost"}
+                onClick={() => handleStatusChange(tab.value)}
+                className="text-xs"
+              >
+                {tab.label}
+              </Button>
+            ))}
+          </div>
+          <div className="h-4 w-px bg-border" />
+          <div className="flex gap-1">
+            {REVIEW_TABS.map((tab) => (
+              <Button
+                key={tab.value}
+                size="sm"
+                variant={reviewStatus === tab.value ? "secondary" : "ghost"}
+                onClick={() => { setReviewStatus(tab.value); setPage(1); }}
+                className="text-xs"
+              >
+                {tab.value === "ready_to_post" && <CheckCircle2 className="w-3 h-3 mr-1" />}
+                {tab.label}
+              </Button>
+            ))}
+          </div>
         </div>
         <div className="flex items-center gap-2">
           {showDeleteAll && (

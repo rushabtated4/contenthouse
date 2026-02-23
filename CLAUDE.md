@@ -28,10 +28,13 @@ ContentHouse is a single-user TikTok carousel replication tool. It fetches TikTo
 - **Framework:** Next.js 16 (App Router, Turbopack)
 - **UI:** Tailwind CSS v4 + shadcn/ui (new-york style) + Radix UI + Lucide icons
 - **Database:** Supabase PostgreSQL + Realtime + Storage
-- **AI:** OpenAI gpt-image-1 (images.edit endpoint)
+- **AI:** OpenAI gpt-image-1.5 (images.edit endpoint), GPT-5.2 (vision/text extraction, structured output)
 - **TikTok:** RapidAPI tiktok-api23
-- **Image Processing:** sharp (resize 1080x1350, strip metadata)
+- **Image Processing:** sharp (resize 1080x1350, strip metadata, SVG text composite)
+- **Canvas:** react-konva + konva (client-side slide editor)
+- **State:** Zustand (editor store)
 - **Calendar:** FullCalendar v6
+- **Fonts:** DM Sans (public/fonts/)
 - **Deployment:** Vercel (300s maxDuration constraint)
 
 ## Key Conventions
@@ -39,9 +42,10 @@ ContentHouse is a single-user TikTok carousel replication tool. It fetches TikTo
 ### File Organization
 ```
 src/app/          — Pages and API routes (App Router)
-src/lib/          — Server-side utilities (supabase, openai, tiktok, storage, metadata, queue, zip, utils)
+src/lib/          — Server-side utilities (supabase, openai, tiktok, storage, metadata, queue, zip, editor, utils)
+src/stores/       — Zustand stores (editor-store)
 src/hooks/        — Client-side React hooks
-src/components/   — React components grouped by feature (layout, carousel, generate, calendar, dashboard, generated, shared, ui)
+src/components/   — React components grouped by feature (layout, carousel, generate, editor, calendar, dashboard, generated, shared, ui)
 src/types/        — TypeScript type definitions
 ```
 
@@ -57,9 +61,9 @@ src/types/        — TypeScript type definitions
 - **OpenAI:** Singleton via `getOpenAIClient()` — lazy-initialized, cached in module scope.
 - **API responses:** Always return `NextResponse.json()`. Errors use `{ error: string, details?: string }`.
 - **Queue:** Self-chaining batches of 5 images. Fire-and-forget via `fetch()` to itself.
-- **Storage:** 3 buckets: `originals`, `generated`, `overlays`. UUID filenames.
+- **Storage:** 4 buckets: `originals`, `generated`, `overlays`, `backgrounds`. UUID filenames.
 - **Image output:** Always strip metadata and resize to 1080x1350 via sharp before storing.
-- **Rate limiting:** Token bucket at 5 req/min for OpenAI calls.
+- **Rate limiting:** Token bucket at 50 req/min for OpenAI calls.
 
 ## Common Gotchas
 
@@ -78,10 +82,11 @@ src/types/        — TypeScript type definitions
 | `videos` | TikTok posts (14,706 rows). Added `original_images` text[] column. |
 | `projects` | Project groupings for organizing accounts. Has `name`, `color`. |
 | `project_accounts` | TikTok channels grouped by project. FK `project_id` → `projects`. Has `nickname`, `added_at`. |
-| `generation_sets` | Generation config, progress tracking, scheduling. `video_id` nullable (null for uploaded posts). Has `title` column. |
+| `generation_sets` | Generation config, progress tracking, scheduling. `video_id` nullable (null for uploaded posts). Has `title` column. `editor_state` JSONB for saved canvas state. `status` includes `editor_draft`. `review_status`: `unverified` (default) / `ready_to_post`. |
 | `generated_images` | Individual AI-generated slide images |
+| `background_library` | Saved backgrounds for editor mode. `source`: generated/uploaded. FK `source_video_id` → `videos`. |
 
-3 storage buckets: `originals`, `generated`, `overlays`
+4 storage buckets: `originals`, `generated`, `overlays`, `backgrounds`
 
 See `docs/DATABASE.md` for full schema.
 
@@ -99,13 +104,21 @@ See `docs/DATABASE.md` for full schema.
 | `/api/images/[setId]/download` | GET | Download ZIP of completed set |
 | `/api/upload-post` | POST | Upload images directly to create scheduled post |
 | `/api/schedule` | GET/POST/PUT/PATCH/DELETE | CRUD scheduling + mark as posted |
-| `/api/generation-sets` | GET/DELETE | List generation sets; bulk delete by IDs or status |
+| `/api/generation-sets` | GET/PATCH/DELETE | List generation sets; update review status; bulk delete by IDs or status |
 | `/api/generation-sets/[id]` | DELETE | Delete single generation set |
 | `/api/projects` | GET | List projects with nested accounts |
 | `/api/project-accounts` | GET | List TikTok channels with nested project |
-| `/api/overlays` | GET | List existing overlays from storage |
+| `/api/overlays` | GET/POST | List/upload overlays from storage |
 | `/api/stats` | GET | Dashboard statistics (enhanced) |
 | `/api/queue` | POST | Batch processor (self-chaining) |
+| `/api/editor/extract-text` | POST | Extract text from slides via GPT-5.2 vision + structured output |
+| `/api/editor/generate-background` | POST | Generate text-free background (single slide) |
+| `/api/editor/generate-background/batch` | POST | Batch generate backgrounds |
+| `/api/editor/export` | POST | Export editor slides as ZIP |
+| `/api/editor/update-generation` | POST | Re-render dirty slides & overwrite generated_images |
+| `/api/editor/save` | GET/PUT | Load/save editor canvas state (editor_draft) |
+| `/api/backgrounds` | GET/POST | List/upload backgrounds |
+| `/api/backgrounds/[id]` | DELETE | Delete background |
 
 See `docs/API.md` for full request/response shapes.
 
@@ -124,7 +137,7 @@ RAPIDAPI_TIKTOK_HOST
 ## Supabase Config
 
 - Project ref: `gqtdvbvwvkncvfqtgnzp`
-- Migrations: `supabase/migrations/001_contenthouse_schema.sql`, `002_add_posted_at.sql`, `004_nullable_video_id.sql`
+- Migrations: `001_contenthouse_schema.sql`, `002_add_posted_at.sql`, `003_videos_carousel_index.sql`, `004_nullable_video_id.sql`, `005_add_projects_table.sql`, `006_account_posting_schedule.sql`, `007_background_library.sql`, `008_editor_state.sql`, `009_review_status.sql`
 - RLS: Permissive (single-user, no auth)
 
 ## Testing
@@ -135,4 +148,4 @@ No test framework configured. Manual testing only.
 
 - Platform: Vercel
 - Queue constraint: Batches of 5 images, self-chaining via fetch() to stay under 300s
-- Route-level `export const maxDuration = 300` on `/api/queue` and `/api/generate/[imageId]/retry`
+- Route-level `export const maxDuration = 300` on `/api/queue`, `/api/generate/[imageId]/retry`, and `/api/editor/generate-background/batch`

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Search } from "lucide-react";
+import { Search, RotateCcw } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 import {
   Select,
   SelectContent,
@@ -28,6 +29,8 @@ interface VideoFilterBarProps {
   accounts: Account[];
   loaded: number;
   total: number;
+  hasActiveFilters?: boolean;
+  onResetFilters?: () => void;
 }
 
 const VIEW_OPTIONS = [
@@ -76,6 +79,8 @@ export function VideoFilterBar({
   accounts,
   loaded,
   total,
+  hasActiveFilters,
+  onResetFilters,
 }: VideoFilterBarProps) {
   const [localSearch, setLocalSearch] = useState(search);
   const onSearchChangeRef = useRef(onSearchChange);
@@ -172,9 +177,22 @@ export function VideoFilterBar({
         </SelectContent>
       </Select>
 
-      <span className="text-sm text-muted-foreground ml-auto shrink-0">
-        {loaded} of {total} videos
-      </span>
+      <div className="flex items-center gap-2 ml-auto shrink-0">
+        {hasActiveFilters && onResetFilters && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onResetFilters}
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset
+          </Button>
+        )}
+        <span className="text-sm text-muted-foreground">
+          {loaded} of {total} videos
+        </span>
+      </div>
     </div>
   );
 }

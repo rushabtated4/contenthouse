@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useCallback, useMemo } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { VideoCard } from "./video-card";
 import { AppTabs } from "./app-tabs";
 import { VideoFilterBar } from "./video-filter-bar";
@@ -16,21 +16,77 @@ import { useVideos, type VideoFilters } from "@/hooks/use-videos";
 import { useApps } from "@/hooks/use-apps";
 import type { Account } from "@/types/database";
 
+const DEFAULT_FILTERS = {
+  search: "",
+  minViews: "5000",
+  accountId: "all",
+  dateRange: "any",
+  sort: "newest",
+  maxGenCount: "any",
+  appId: null as string | null,
+};
+
 export function VideoGrid() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fetchError, setFetchError] = useState<string | null>(null);
 
-  // Filter state
-  const [selectedAppId, setSelectedAppId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
-  const [minViews, setMinViews] = useState("5000");
-  const [accountId, setAccountId] = useState("all");
-  const [dateRange, setDateRange] = useState("any");
-  const [sort, setSort] = useState("newest");
-  const [maxGenCount, setMaxGenCount] = useState("any");
+  // Filter state — initialize from URL search params
+  const [selectedAppId, setSelectedAppId] = useState<string | null>(
+    searchParams.get("appId") ?? DEFAULT_FILTERS.appId
+  );
+  const [search, setSearch] = useState(
+    searchParams.get("search") ?? DEFAULT_FILTERS.search
+  );
+  const [minViews, setMinViews] = useState(
+    searchParams.get("minViews") ?? DEFAULT_FILTERS.minViews
+  );
+  const [accountId, setAccountId] = useState(
+    searchParams.get("accountId") ?? DEFAULT_FILTERS.accountId
+  );
+  const [dateRange, setDateRange] = useState(
+    searchParams.get("dateRange") ?? DEFAULT_FILTERS.dateRange
+  );
+  const [sort, setSort] = useState(
+    searchParams.get("sort") ?? DEFAULT_FILTERS.sort
+  );
+  const [maxGenCount, setMaxGenCount] = useState(
+    searchParams.get("maxGenCount") ?? DEFAULT_FILTERS.maxGenCount
+  );
 
   const { apps, loading: appsLoading } = useApps();
+
+  // Sync filter state to URL search params
+  const isInitialMount = useRef(true);
+  useEffect(() => {
+    if (isInitialMount.current) {
+      isInitialMount.current = false;
+      return;
+    }
+    const params = new URLSearchParams();
+    if (search) params.set("search", search);
+    if (minViews !== DEFAULT_FILTERS.minViews) params.set("minViews", minViews);
+    if (accountId !== DEFAULT_FILTERS.accountId) params.set("accountId", accountId);
+    if (dateRange !== DEFAULT_FILTERS.dateRange) params.set("dateRange", dateRange);
+    if (sort !== DEFAULT_FILTERS.sort) params.set("sort", sort);
+    if (maxGenCount !== DEFAULT_FILTERS.maxGenCount) params.set("maxGenCount", maxGenCount);
+    if (selectedAppId) params.set("appId", selectedAppId);
+    const qs = params.toString();
+    router.replace(qs ? `?${qs}` : "/videos", { scroll: false });
+  }, [search, minViews, accountId, dateRange, sort, maxGenCount, selectedAppId, router]);
+
+  const hasActiveFilters = useMemo(
+    () =>
+      search !== DEFAULT_FILTERS.search ||
+      minViews !== DEFAULT_FILTERS.minViews ||
+      accountId !== DEFAULT_FILTERS.accountId ||
+      dateRange !== DEFAULT_FILTERS.dateRange ||
+      sort !== DEFAULT_FILTERS.sort ||
+      maxGenCount !== DEFAULT_FILTERS.maxGenCount ||
+      selectedAppId !== DEFAULT_FILTERS.appId,
+    [search, minViews, accountId, dateRange, sort, maxGenCount, selectedAppId]
+  );
 
   // Compute date filters
   const dateFilters = useMemo(() => {
@@ -67,6 +123,17 @@ export function VideoGrid() {
     refetch,
     resetPages,
   } = useVideos({ limit: 24, filters });
+
+  const handleResetFilters = useCallback(() => {
+    setSearch(DEFAULT_FILTERS.search);
+    setMinViews(DEFAULT_FILTERS.minViews);
+    setAccountId(DEFAULT_FILTERS.accountId);
+    setDateRange(DEFAULT_FILTERS.dateRange);
+    setSort(DEFAULT_FILTERS.sort);
+    setMaxGenCount(DEFAULT_FILTERS.maxGenCount);
+    setSelectedAppId(DEFAULT_FILTERS.appId);
+    resetPages();
+  }, [resetPages]);
 
   // Available accounts based on selected app
   const availableAccounts: Account[] = useMemo(() => {
@@ -201,6 +268,8 @@ export function VideoGrid() {
         accounts={availableAccounts}
         loaded={videos.length}
         total={total}
+        hasActiveFilters={hasActiveFilters}
+        onResetFilters={handleResetFilters}
       />
 
       {/* Grid */}
