@@ -125,6 +125,41 @@ interface EditorState {
   loadEditorStateBySetId: (setId: string) => Promise<void>;
 }
 
+/** Convert blob: URLs to base64 data URLs (no-op for non-blob URLs) */
+async function blobUrlToDataUrl(url: string): Promise<string> {
+  if (!url.startsWith("blob:")) return url;
+  const res = await fetch(url);
+  const blob = await res.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/** Resolve any blob URLs in slide data before sending to server */
+async function resolveSlideUrls(slide: {
+  backgroundUrl: string | null;
+  backgroundColor: string | null;
+  backgroundTintColor: string | null;
+  backgroundTintOpacity: number;
+  originalImageUrl: string;
+  textBlocks: TextBlock[];
+  overlayImages: OverlayImage[];
+}) {
+  return {
+    ...slide,
+    backgroundUrl: slide.backgroundUrl ? await blobUrlToDataUrl(slide.backgroundUrl) : null,
+    overlayImages: await Promise.all(
+      slide.overlayImages.map(async (o) => ({
+        ...o,
+        imageUrl: await blobUrlToDataUrl(o.imageUrl),
+      }))
+    ),
+  };
+}
+
 function makeSlideId() {
   return crypto.randomUUID();
 }
@@ -914,11 +949,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const { slides, outputFormat, aspectRatio } = get();
     set({ exportStatus: "loading" });
     try {
-      const res = await fetch("/api/editor/export", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          slides: slides.map((s) => ({
+      const resolvedSlides = await Promise.all(
+        slides.map((s) =>
+          resolveSlideUrls({
             backgroundUrl: s.backgroundUrl,
             backgroundColor: s.backgroundColor ?? null,
             backgroundTintColor: s.backgroundTintColor ?? null,
@@ -926,7 +959,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             originalImageUrl: s.originalImageUrl,
             textBlocks: s.textBlocks,
             overlayImages: s.overlayImages,
-          })),
+          })
+        )
+      );
+      const res = await fetch("/api/editor/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          slides: resolvedSlides,
           outputFormat,
           aspectRatio,
         }),
@@ -946,18 +986,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!savedSetId || dirtySlideIndexes.size === 0) return;
     set({ updateGenerationStatus: "loading" });
     try {
-      const dirtySlides = Array.from(dirtySlideIndexes).map((idx) => ({
-        editorIndex: idx,
-        slide: {
-          backgroundUrl: slides[idx].backgroundUrl,
-          backgroundColor: slides[idx].backgroundColor ?? null,
-          backgroundTintColor: slides[idx].backgroundTintColor ?? null,
-          backgroundTintOpacity: slides[idx].backgroundTintOpacity ?? 0,
-          originalImageUrl: slides[idx].originalImageUrl,
-          textBlocks: slides[idx].textBlocks,
-          overlayImages: slides[idx].overlayImages,
-        },
-      }));
+      const dirtySlides = await Promise.all(
+        Array.from(dirtySlideIndexes).map(async (idx) => ({
+          editorIndex: idx,
+          slide: await resolveSlideUrls({
+            backgroundUrl: slides[idx].backgroundUrl,
+            backgroundColor: slides[idx].backgroundColor ?? null,
+            backgroundTintColor: slides[idx].backgroundTintColor ?? null,
+            backgroundTintOpacity: slides[idx].backgroundTintOpacity ?? 0,
+            originalImageUrl: slides[idx].originalImageUrl,
+            textBlocks: slides[idx].textBlocks,
+            overlayImages: slides[idx].overlayImages,
+          }),
+        }))
+      );
       const res = await fetch("/api/editor/update-generation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -977,18 +1019,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!savedSetId) return;
     set({ updateGenerationStatus: "loading" });
     try {
-      const allSlides = slides.map((slide, idx) => ({
-        editorIndex: idx,
-        slide: {
-          backgroundUrl: slide.backgroundUrl,
-          backgroundColor: slide.backgroundColor ?? null,
-          backgroundTintColor: slide.backgroundTintColor ?? null,
-          backgroundTintOpacity: slide.backgroundTintOpacity ?? 0,
-          originalImageUrl: slide.originalImageUrl,
-          textBlocks: slide.textBlocks,
-          overlayImages: slide.overlayImages,
-        },
-      }));
+      const allSlides = await Promise.all(
+        slides.map(async (slide, idx) => ({
+          editorIndex: idx,
+          slide: await resolveSlideUrls({
+            backgroundUrl: slide.backgroundUrl,
+            backgroundColor: slide.backgroundColor ?? null,
+            backgroundTintColor: slide.backgroundTintColor ?? null,
+            backgroundTintOpacity: slide.backgroundTintOpacity ?? 0,
+            originalImageUrl: slide.originalImageUrl,
+            textBlocks: slide.textBlocks,
+            overlayImages: slide.overlayImages,
+          }),
+        }))
+      );
       const res = await fetch("/api/editor/create-generation", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

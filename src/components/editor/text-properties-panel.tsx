@@ -199,8 +199,8 @@ export function TextPropertiesPanel() {
             variant="outline"
             size="sm"
             className="flex-1 h-7 text-xs"
-            title="48px, Medium, tight spacing"
-            onClick={() => update({ fontSize: 48, fontWeight: 500, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+            title="44px, Medium, tight spacing"
+            onClick={() => update({ fontSize: 44, fontWeight: 500, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
           >
             P1
           </Button>
@@ -208,8 +208,8 @@ export function TextPropertiesPanel() {
             variant="outline"
             size="sm"
             className="flex-1 h-7 text-xs"
-            title="64px, Bold, tight spacing"
-            onClick={() => update({ fontSize: 64, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+            title="60px, Bold, tight spacing"
+            onClick={() => update({ fontSize: 60, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
           >
             H1
           </Button>
@@ -217,8 +217,8 @@ export function TextPropertiesPanel() {
             variant="outline"
             size="sm"
             className="flex-1 h-7 text-xs"
-            title="56px, SemiBold, tight spacing"
-            onClick={() => update({ fontSize: 56, fontWeight: 600, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+            title="52px, SemiBold, tight spacing"
+            onClick={() => update({ fontSize: 52, fontWeight: 600, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
           >
             H2
           </Button>
@@ -231,10 +231,10 @@ export function TextPropertiesPanel() {
               for (const b of activeSlide.textBlocks) {
                 const len = b.text.length;
                 const preset = len <= 30
-                  ? { fontSize: 64, fontWeight: 700 as const }
+                  ? { fontSize: 60, fontWeight: 700 as const }
                   : len <= 45
-                  ? { fontSize: 56, fontWeight: 600 as const }
-                  : { fontSize: 48, fontWeight: 500 as const };
+                  ? { fontSize: 52, fontWeight: 600 as const }
+                  : { fontSize: 44, fontWeight: 500 as const };
                 updateTextBlock(activeSlideIndex, b.id, {
                   ...preset,
                   letterSpacing: -1.5,
@@ -256,10 +256,10 @@ export function TextPropertiesPanel() {
                 for (const b of slide.textBlocks) {
                   const len = b.text.length;
                   const preset = len <= 30
-                    ? { fontSize: 64, fontWeight: 700 as const }
+                    ? { fontSize: 60, fontWeight: 700 as const }
                     : len <= 45
-                    ? { fontSize: 56, fontWeight: 600 as const }
-                    : { fontSize: 48, fontWeight: 500 as const };
+                    ? { fontSize: 52, fontWeight: 600 as const }
+                    : { fontSize: 44, fontWeight: 500 as const };
                   updateTextBlock(si, b.id, {
                     ...preset,
                     letterSpacing: -1.5,

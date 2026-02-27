@@ -51,6 +51,7 @@ RootLayout (src/app/layout.tsx)
 │           ├── EditorFilmstrip (editor/editor-filmstrip.tsx)
 │           ├── EditorToolbar (editor/editor-toolbar.tsx) [+undo/redo, group/ungroup]
 │           ├── EditorCanvas (editor/editor-canvas.tsx) [z-order rendering, multi-select, shortcuts]
+│           ├── CanvasBackgroundUpload (editor/canvas-bg-upload.tsx) [drop/click to set slide background from local file]
 │           ├── ClearSlidesDialog (editor/clear-slides-dialog.tsx) [clear text/bg/overlays from all slides]
 │           │   ├── CanvasBackground (editor/canvas-background.tsx)
 │           │   ├── CanvasTextBlock[] (editor/canvas-text-block.tsx) [+Transformer width resize]

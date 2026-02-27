@@ -68,7 +68,7 @@ CRITICAL RULES FOR POSITION AND SPACING:
 
 Each block object must have ALL of these fields:
 - "text": string, the text content. Only \\n for paragraph breaks (not word wrap).
-- "paraphrasedText": string, rewritten keeping same message. Match \\n count.
+- "paraphrasedText": string, substantially rewritten with different wording, sentence structure, and vocabulary while preserving the core meaning. Do NOT just swap a few synonyms — restructure the sentence, change the phrasing style, and use a noticeably different voice. Match \\n count.
 - "segments": array of {"text": string, "bold": boolean}. Split by bold vs normal. If uniform weight, one segment. Joined segment texts must equal "text".
 - "x": number, percentage from left 0-100
 - "y": number, percentage from top 0-100
