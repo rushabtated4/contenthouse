@@ -965,6 +965,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (!res.ok) throw new Error("Update generation failed");
       set({ updateGenerationStatus: "done", dirtySlideIndexes: new Set<number>() });
+      // Also save editor state
+      await get().saveEditorState();
     } catch {
       set({ updateGenerationStatus: "error" });
     }
@@ -998,6 +1000,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         dirtySlideIndexes: new Set<number>(),
         hasGeneratedImages: true,
       });
+      // Also save editor state
+      await get().saveEditorState();
     } catch {
       set({ updateGenerationStatus: "error" });
     }
