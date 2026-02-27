@@ -80,7 +80,8 @@ Each block object must have ALL of these fields:
 - "alignment": "left" | "center" | "right"
 - "textTransform": "uppercase" | "lowercase" | "none"
 - "lineHeight": number, 0.8-2.0 (default 1.2)
-- "letterSpacing": number, 0-30 (default 0)
+- "letterSpacing": number, -5 to 30 (default -1.5)
+- "wordSpacing": number, -10 to 30 (default 0)
 - "hasStroke": boolean (default false)
 - "strokeColor": string, hex (default "#000000")
 - "strokeWidth": number, 0-15 (default 0)
@@ -97,7 +98,7 @@ Each block object must have ALL of these fields:
 - "backgroundBorderWidth": number, 0-8 (default 0)
 
 Example with heading + body as separate blocks (note the vertical gap — heading ends at y+height=17%, body starts at y=22%, giving a 5% gap):
-{"blocks":[{"text":"Save this for later","paraphrasedText":"Bookmark this for next time","segments":[{"text":"Save this for ","bold":false},{"text":"later","bold":true}],"x":15,"y":5,"width":70,"height":12,"fontSize":96,"fontWeight":700,"color":"#FFFFFF","alignment":"center","textTransform":"none","lineHeight":1.2,"letterSpacing":0,"hasStroke":false,"strokeColor":"#000000","strokeWidth":0,"hasShadow":false,"shadowColor":"#000000","shadowBlur":4,"shadowOffsetX":2,"shadowOffsetY":2,"backgroundColor":"#000000","backgroundOpacity":0,"backgroundPadding":20,"backgroundCornerRadius":16,"backgroundBorderColor":"#000000","backgroundBorderWidth":0},{"text":"Many managers respond with pressure or punishment when employees underperform.","paraphrasedText":"A lot of leaders resort to force or penalties when their team falls short.","segments":[{"text":"Many managers respond with pressure or punishment when employees underperform.","bold":false}],"x":10,"y":22,"width":80,"height":20,"fontSize":40,"fontWeight":400,"color":"#FFFFFF","alignment":"left","textTransform":"none","lineHeight":1.4,"letterSpacing":0,"hasStroke":false,"strokeColor":"#000000","strokeWidth":0,"hasShadow":false,"shadowColor":"#000000","shadowBlur":4,"shadowOffsetX":2,"shadowOffsetY":2,"backgroundColor":"#000000","backgroundOpacity":0,"backgroundPadding":20,"backgroundCornerRadius":16,"backgroundBorderColor":"#000000","backgroundBorderWidth":0}]}`,
+{"blocks":[{"text":"Save this for later","paraphrasedText":"Bookmark this for next time","segments":[{"text":"Save this for ","bold":false},{"text":"later","bold":true}],"x":15,"y":5,"width":70,"height":12,"fontSize":96,"fontWeight":700,"color":"#FFFFFF","alignment":"center","textTransform":"none","lineHeight":1.2,"letterSpacing":-1.5,"wordSpacing":0,"hasStroke":false,"strokeColor":"#000000","strokeWidth":0,"hasShadow":false,"shadowColor":"#000000","shadowBlur":4,"shadowOffsetX":2,"shadowOffsetY":2,"backgroundColor":"#000000","backgroundOpacity":0,"backgroundPadding":20,"backgroundCornerRadius":16,"backgroundBorderColor":"#000000","backgroundBorderWidth":0},{"text":"Many managers respond with pressure or punishment when employees underperform.","paraphrasedText":"A lot of leaders resort to force or penalties when their team falls short.","segments":[{"text":"Many managers respond with pressure or punishment when employees underperform.","bold":false}],"x":10,"y":22,"width":80,"height":20,"fontSize":40,"fontWeight":400,"color":"#FFFFFF","alignment":"left","textTransform":"none","lineHeight":1.4,"letterSpacing":-1.5,"wordSpacing":0,"hasStroke":false,"strokeColor":"#000000","strokeWidth":0,"hasShadow":false,"shadowColor":"#000000","shadowBlur":4,"shadowOffsetX":2,"shadowOffsetY":2,"backgroundColor":"#000000","backgroundOpacity":0,"backgroundPadding":20,"backgroundCornerRadius":16,"backgroundBorderColor":"#000000","backgroundBorderWidth":0}]}`,
             },
             {
               role: "user",
@@ -152,6 +153,7 @@ Example with heading + body as separate blocks (note the vertical gap — headin
                         textTransform: { type: "string", enum: ["none", "uppercase", "lowercase"] },
                         lineHeight: { type: "number" },
                         letterSpacing: { type: "number" },
+                        wordSpacing: { type: "number" },
                         hasStroke: { type: "boolean" },
                         strokeColor: { type: "string" },
                         strokeWidth: { type: "number" },
@@ -171,7 +173,7 @@ Example with heading + body as separate blocks (note the vertical gap — headin
                         "text", "paraphrasedText", "segments",
                         "x", "y", "width", "height",
                         "fontSize", "fontWeight", "color", "alignment", "textTransform",
-                        "lineHeight", "letterSpacing",
+                        "lineHeight", "letterSpacing", "wordSpacing",
                         "hasStroke", "strokeColor", "strokeWidth",
                         "hasShadow", "shadowColor", "shadowBlur", "shadowOffsetX", "shadowOffsetY",
                         "backgroundColor", "backgroundOpacity", "backgroundPadding",
@@ -248,7 +250,8 @@ Example with heading + body as separate blocks (note the vertical gap — headin
               alignment: (["left", "center", "right"].includes(String(raw.alignment)) ? String(raw.alignment) : "center") as TextBlock["alignment"],
               textTransform: (VALID_TRANSFORMS.includes(String(raw.textTransform)) ? String(raw.textTransform) : "none") as TextBlock["textTransform"],
               lineHeight: Math.min(3.0, Math.max(0.8, Number(raw.lineHeight) || 1.2)),
-              letterSpacing: Math.min(30, Math.max(0, Number(raw.letterSpacing) || 0)),
+              letterSpacing: Math.min(30, Math.max(-5, Number(raw.letterSpacing ?? -1.5))),
+              wordSpacing: Math.min(30, Math.max(-10, Number(raw.wordSpacing ?? 0))),
               hasShadow: raw.hasShadow === true,
               shadowColor: String(raw.shadowColor || "#000000"),
               shadowBlur: Math.min(20, Math.max(0, Number(raw.shadowBlur) || 4)),

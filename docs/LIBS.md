@@ -267,10 +267,11 @@ function computeSegmentLayout(
   fontWeight: number,
   lineHeight: number,
   letterSpacing: number,
+  wordSpacing: number,
   alignment: "left" | "center" | "right",
   ctx: CanvasRenderingContext2D
 ): LayoutLine[]
-// Word-wraps segments with per-word bold measurement, applies alignment offsets
+// Word-wraps segments with per-word bold measurement, applies alignment offsets, respects word spacing
 
 function segmentsToMarkdown(segments: TextSegment[]): string
 // Converts segments to markdown text with **bold** markers
@@ -289,8 +290,8 @@ Server-side font utilities for export parity. Uses opentype.js to load TikTok Sa
 function loadFont(weight: number): opentype.Font
 // Loads TikTok Sans TTF for given weight (400/500/700/800). Cached in module scope.
 
-function measureText(text: string, fontSize: number, font: opentype.Font, letterSpacing?: number): number
-// Measures string width using opentype.js font metrics. Accounts for kerning and letter-spacing.
+function measureText(text: string, fontSize: number, font: opentype.Font, letterSpacing?: number, wordSpacing?: number): number
+// Measures string width using opentype.js font metrics. Accounts for kerning, letter-spacing, and word-spacing.
 
 function getFontBase64Css(): string
 // Returns <style> block with @font-face declarations using base64 data URIs for all 4 weights.
@@ -313,10 +314,11 @@ function serverComputeSegmentLayout(
   fontWeight: number,
   lineHeight: number,
   letterSpacing: number,
+  wordSpacing: number,
   alignment: "left" | "center" | "right"
 ): LayoutLine[]
 // Word-wraps segments with per-word bold measurement using opentype.js.
-// Same algorithm as client-side computeSegmentLayout.
+// Same algorithm as client-side computeSegmentLayout, respects word spacing.
 ```
 
 Re-exports `LayoutLine` and `LayoutWord` types from `segment-layout.ts`.
@@ -334,7 +336,8 @@ function applyTextTransform(text: string, transform: TextBlock["textTransform"])
 function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): string
 async function processOverlay(overlay: OverlayImage, canvasHeight: number): Promise<{ buffer: Buffer; top: number; left: number } | null>
 async function renderSlide(slide: SlideInput, outputFormat: "png" | "jpeg" | "webp", aspectRatio: AspectRatio): Promise<Buffer | null>
-// Renders a single editor slide (background + text blocks + overlays) to an image buffer
+// Renders a single editor slide (background + tint overlay + text blocks + overlays) to an image buffer
+// SlideInput includes optional backgroundTintColor and backgroundTintOpacity for color wash over background images
 ```
 
 ---
@@ -482,3 +485,81 @@ function computeSlots(
 ```
 
 Fetches projects and schedule data, computes posting slot grids for account schedule cards.
+
+---
+
+## lib/replicate/client.ts
+
+Lazy-initialized Replicate API client singleton.
+
+```typescript
+import { getReplicateClient } from "@/lib/replicate/client";
+
+const replicate = getReplicateClient();
+// Uses: REPLICATE_API_TOKEN
+// Returns: Replicate client instance from the `replicate` npm package
+```
+
+---
+
+## lib/replicate/nano-banana.ts
+
+Wrapper for submitting image generation predictions to Replicate Nano Banana Pro.
+
+```typescript
+interface NanaBananaParams {
+  imageUrl: string;        // Input image URL (snapshot frame)
+  prompt: string;          // Generation prompt
+  numImages?: number;      // Number of images to generate (default: 4)
+  webhookUrl: string;      // URL Replicate will POST results to
+}
+
+interface NanaBananaPrediction {
+  id: string;              // Replicate prediction ID
+  status: string;          // "starting" | "processing" | "succeeded" | "failed"
+}
+
+async function createNanaBananaPrediction(params: NanaBananaParams): Promise<NanaBananaPrediction>
+```
+
+**Model:** `fofr/nano-banana` (or equivalent Nano Banana Pro Replicate model ID)
+
+---
+
+## lib/replicate/kling.ts
+
+Wrapper for submitting video generation predictions to Replicate Kling v2.6.
+
+```typescript
+interface KlingParams {
+  imageUrl: string;        // Input image URL (selected hook image)
+  prompt: string;          // Video generation prompt
+  duration: number;        // Video duration in seconds (5 or 10)
+  aspectRatio: string;     // e.g. "9:16"
+  webhookUrl: string;      // URL Replicate will POST results to
+}
+
+interface KlingPrediction {
+  id: string;              // Replicate prediction ID
+  status: string;
+}
+
+async function createKlingPrediction(params: KlingParams): Promise<KlingPrediction>
+```
+
+**Model:** `kwaivgi/kling-v2.6` (or equivalent Kling v2.6 Replicate model ID)
+
+---
+
+## lib/replicate/webhook.ts
+
+HMAC-SHA256 webhook signature verification for Replicate callbacks.
+
+```typescript
+async function verifyReplicateWebhook(
+  request: Request,
+  secret: string
+): Promise<boolean>
+// Returns true if the webhook signature is valid, false otherwise
+// Uses: replicate-webhook-id, replicate-webhook-timestamp, replicate-webhook-signature headers
+```

@@ -25,6 +25,7 @@ export function computeSegmentLayout(
   fontWeight: number,
   lineHeight: number,
   letterSpacing: number,
+  wordSpacing: number,
   alignment: "left" | "center" | "right",
   ctx: CanvasRenderingContext2D
 ): LayoutLine[] {
@@ -38,6 +39,9 @@ export function computeSegmentLayout(
     ctx.font = `${weight} ${fontSize}px ${fontFamily}`;
     if (letterSpacing) {
       (ctx as unknown as Record<string, unknown>).letterSpacing = `${letterSpacing}px`;
+    }
+    if (wordSpacing) {
+      (ctx as unknown as Record<string, unknown>).wordSpacing = `${wordSpacing}px`;
     }
   }
 

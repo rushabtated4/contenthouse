@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Type, Image, Download, Save, Loader2, Undo2, Redo2, Group, Ungroup, RefreshCw } from "lucide-react";
+import { Type, Image, Download, Save, Loader2, Undo2, Redo2, Group, Ungroup, RefreshCw, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 
 export function EditorToolbar() {
@@ -26,7 +26,9 @@ export function EditorToolbar() {
   const isDirty = useEditorStore((s) => s.isDirty);
   const savedSetId = useEditorStore((s) => s.savedSetId);
   const dirtySlideIndexes = useEditorStore((s) => s.dirtySlideIndexes);
+  const hasGeneratedImages = useEditorStore((s) => s.hasGeneratedImages);
   const updateGeneration = useEditorStore((s) => s.updateGeneration);
+  const createGeneration = useEditorStore((s) => s.createGeneration);
   const updateGenerationStatus = useEditorStore((s) => s.updateGenerationStatus);
   const undo = useEditorStore((s) => s.undo);
   const redo = useEditorStore((s) => s.redo);
@@ -86,8 +88,20 @@ export function EditorToolbar() {
     }
   };
 
+  const handleCreateGeneration = async () => {
+    toast.info("Creating generation images...");
+    await createGeneration();
+    const status = useEditorStore.getState().updateGenerationStatus;
+    if (status === "done") {
+      toast.success("Generation created!");
+    } else {
+      toast.error("Failed to create generation");
+    }
+  };
+
   const dirtyCount = dirtySlideIndexes.size;
-  const showUpdateGeneration = !!savedSetId && dirtyCount > 0;
+  const showCreateGeneration = !!savedSetId && !hasGeneratedImages;
+  const showUpdateGeneration = !!savedSetId && hasGeneratedImages && dirtyCount > 0;
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -167,6 +181,21 @@ export function EditorToolbar() {
       )}
 
       <div className="ml-auto flex items-center gap-2">
+        {showCreateGeneration && (
+          <Button
+            variant="default"
+            size="sm"
+            onClick={handleCreateGeneration}
+            disabled={updateGenerationStatus === "loading"}
+          >
+            {updateGenerationStatus === "loading" ? (
+              <Loader2 className="w-4 h-4 mr-1 animate-spin" />
+            ) : (
+              <Wand2 className="w-4 h-4 mr-1" />
+            )}
+            Create Generation
+          </Button>
+        )}
         {showUpdateGeneration && (
           <Button
             variant="default"

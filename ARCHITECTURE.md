@@ -17,6 +17,7 @@ ContentHouse is a single-user TikTok carousel replication tool built with Next.j
 | Zustand | Client-side state management (editor) |
 | react-konva + konva | Canvas rendering (editor) |
 | RapidAPI tiktok-api23 | TikTok data fetching |
+| Replicate (Nano Banana Pro + Kling v2.6) | Hook Creator AI image & video generation |
 | FullCalendar v6 | Calendar scheduling UI |
 | sharp | Image processing & metadata stripping |
 | archiver | Server-side ZIP creation |
@@ -51,7 +52,11 @@ contenthouse/
 │   │   │   │   └── [id]/page.tsx     # Generate (existing carousel)
 │   │   │   ├── generated/page.tsx    # Generated carousels with filters/pagination
 │   │   │   ├── calendar/page.tsx     # Calendar + list view with posted tracking
-│   │   │   └── accounts/page.tsx     # Project accounts list
+│   │   │   ├── accounts/page.tsx     # Project accounts list
+│   │   │   └── hooks/
+│   │   │       ├── page.tsx          # Hook Creator library
+│   │   │       ├── new/page.tsx      # New hook wizard
+│   │   │       └── [id]/page.tsx     # Hook session detail
 │   │   ├── login/page.tsx            # Login page (password gate)
 │   │   └── api/
 │   │       ├── auth/login/route.ts   # POST: Password authentication
@@ -73,10 +78,32 @@ contenthouse/
 │   │       │   │   ├── route.ts               # POST: Single bg generation
 │   │       │   │   └── batch/route.ts         # POST: Batch bg generation
 │   │       │   └── export/route.ts            # POST: Export slides as ZIP
-│   │       └── backgrounds/
-│   │           ├── route.ts           # GET/POST: List/upload backgrounds
-│   │           └── [id]/route.ts      # DELETE: Remove background
+│   │       ├── backgrounds/
+│   │       │   ├── route.ts           # GET/POST: List/upload backgrounds
+│   │       │   ├── [id]/route.ts      # DELETE: Remove background
+│   │       │   ├── folders/route.ts   # GET/POST: List/create folders
+│   │       │   ├── folders/[id]/route.ts  # PATCH/DELETE: Rename/delete folder
+│   │       │   └── upload-batch/route.ts  # POST: Multi-upload to folder
+│   │       └── hooks/
+│   │           ├── sessions/route.ts                          # GET/POST: List/create sessions
+│   │           ├── sessions/[id]/route.ts                     # GET/PATCH/DELETE: Manage session
+│   │           ├── sessions/[id]/snapshot/route.ts            # POST: Extract snapshot frame
+│   │           ├── sessions/[id]/generate-images/route.ts     # POST: Generate images
+│   │           ├── sessions/[id]/generate-images/retry/route.ts # POST: Retry image
+│   │           ├── sessions/[id]/select-images/route.ts       # PATCH: Select images
+│   │           ├── sessions/[id]/generate-videos/route.ts     # POST: Generate videos
+│   │           ├── tiktok-video/route.ts                      # POST: Download TikTok video
+│   │           ├── webhook/route.ts                           # POST: Replicate webhook
+│   │           ├── library/route.ts                           # GET: Completed video library
+│   │           └── videos/[id]/
+│   │               ├── route.ts                               # PATCH/DELETE: Update/delete video
+│   │               └── download/route.ts                      # GET: Download video
 │   ├── lib/
+│   │   ├── replicate/
+│   │   │   ├── client.ts             # Replicate API client singleton
+│   │   │   ├── nano-banana.ts        # Nano Banana Pro prediction wrapper
+│   │   │   ├── kling.ts              # Kling v2.6 prediction wrapper
+│   │   │   └── webhook.ts            # HMAC-SHA256 webhook verification
 │   │   ├── supabase/
 │   │   │   ├── client.ts             # Browser Supabase client
 │   │   │   └── server.ts             # Server-side Supabase client (service role)
@@ -98,6 +125,8 @@ contenthouse/
 │   │   │   └── rate-limiter.ts       # Token-bucket rate limiter (~5 RPM)
 │   │   ├── editor/
 │   │   │   └── defaults.ts           # Editor constants (prompts, canvas size, fonts)
+│   │   ├── hooks/ (lib utilities for hook creator)
+│   │   │   └── (see lib/replicate/)
 │   │   ├── utils/
 │   │   │   └── format.ts             # Number formatting, cost estimation
 │   │   └── utils.ts                  # shadcn cn() utility
@@ -143,7 +172,29 @@ contenthouse/
 │   │   │   ├── canvas-background.tsx      # Background image layer
 │   │   │   ├── text-properties-panel.tsx  # Font, color, alignment controls
 │   │   │   ├── background-controls.tsx    # BG prompt, regenerate, upload, library
-│   │   │   └── background-library-dialog.tsx # Grid of saved backgrounds
+│   │   │   ├── background-library-dialog.tsx # Two-level: folder grid → folder contents
+│   │   │   ├── background-upload-zone.tsx    # Drag-drop multi-upload zone
+│   │   │   ├── folder-grid-view.tsx          # Folder cards + unfiled images
+│   │   │   └── folder-contents-view.tsx      # Folder contents + auto apply + upload zone
+│   │   ├── hooks/
+│   │   │   ├── hook-wizard.tsx            # 7-step wizard orchestrator
+│   │   │   ├── hook-wizard-nav.tsx        # Back/Next/Finish navigation
+│   │   │   ├── hook-tiktok-input.tsx      # TikTok URL input for hook video
+│   │   │   ├── hook-upload-input.tsx      # Video file upload for hook input
+│   │   │   ├── hook-video-scrubber.tsx    # Video scrubber + snapshot capture
+│   │   │   ├── hook-image-grid.tsx        # Grid of generated images (selectable)
+│   │   │   ├── hook-video-grid.tsx        # Grid of generated videos
+│   │   │   ├── hook-library-grid.tsx      # Paginated completed video library
+│   │   │   ├── hook-video-card.tsx        # Library video card
+│   │   │   ├── hook-session-detail.tsx    # Session detail view
+│   │   │   └── steps/
+│   │   │       ├── hook-source-step.tsx
+│   │   │       ├── hook-snapshot-step.tsx
+│   │   │       ├── hook-image-prompt-step.tsx
+│   │   │       ├── hook-generating-images-step.tsx
+│   │   │       ├── hook-select-images-step.tsx
+│   │   │       ├── hook-video-prompt-step.tsx
+│   │   │       └── hook-generating-videos-step.tsx
 │   │   ├── accounts/
 │   │   │   └── account-list.tsx       # Project accounts list (read-only)
 │   │   └── shared/
@@ -153,6 +204,9 @@ contenthouse/
 │   │       ├── error-state.tsx        # Error state with retry button
 │   │       └── loading-skeleton.tsx   # Skeleton loaders
 │   ├── hooks/
+│   │   ├── use-hook-session.ts       # Fetch/poll a hook session with images + videos
+│   │   ├── use-hook-library.ts       # Paginated completed hook video library
+│   │   ├── use-hook-polling.ts       # Generic polling hook for hook session status
 │   │   ├── use-video.ts              # Fetch single video with sets
 │   │   ├── use-generation-progress.ts # Supabase Realtime progress tracking
 │   │   ├── use-projects.ts           # Fetch projects with accounts
@@ -160,12 +214,14 @@ contenthouse/
 │   │   ├── use-scheduled-events.ts   # Fetch calendar events (with posted status)
 │   │   ├── use-dashboard-stats.ts    # Fetch enhanced dashboard stats
 │   │   ├── use-generated-sets.ts     # Fetch generation sets with filters
-│   │   ├── use-backgrounds.ts       # Background library data fetching
+│   │   ├── use-backgrounds.ts       # Background library data fetching (supports folderId)
+│   │   ├── use-background-folders.ts # Background folder CRUD
 │   │   └── use-mobile.ts            # shadcn mobile detection hook
 │   └── types/
 │       ├── database.ts               # TypeScript types for all tables
 │       ├── api.ts                    # Request/response types for API routes
-│       └── editor.ts                 # Editor types (TextBlock, EditorSlide, etc.)
+│       ├── editor.ts                 # Editor types (TextBlock, EditorSlide, etc.)
+│       └── hooks.ts                  # Hook Creator types (HookSession, HookGeneratedImage, etc.)
 ```
 
 ## Database Schema
@@ -180,6 +236,10 @@ contenthouse/
 | `generation_sets` | New | Generation config, progress, scheduling |
 | `generated_images` | New | Individual generated image records |
 | `background_library` | New | Saved backgrounds for editor mode |
+| `background_folders` | New | Folders for organizing backgrounds |
+| `hook_sessions` | New | Hook Creator wizard sessions |
+| `hook_generated_images` | New | Replicate Nano Banana Pro image results |
+| `hook_generated_videos` | New | Replicate Kling v2.6 video results |
 
 ### Storage Buckets
 
@@ -189,6 +249,8 @@ contenthouse/
 | `generated` | AI-generated images (metadata stripped) |
 | `overlays` | User-uploaded overlay images |
 | `backgrounds` | Editor background images (generated/uploaded) |
+| `hook-videos` | Hook Creator input/output video files |
+| `hook-images` | Hook Creator snapshot frames and generated images |
 
 ### Relationships
 
@@ -201,6 +263,14 @@ videos (existing)
   │     ├── generation_sets.channel_id → project_accounts.id
   │     └── generated_images.set_id → generation_sets.id
   └── background_library.source_video_id → videos.id
+
+background_folders
+  └── background_library.folder_id → background_folders.id (ON DELETE SET NULL)
+
+hook_sessions
+  ├── hook_generated_images.session_id → hook_sessions.id
+  └── hook_generated_videos.session_id → hook_sessions.id
+        └── hook_generated_videos.source_image_id → hook_generated_images.id
 ```
 
 ## API Routes
@@ -224,8 +294,23 @@ videos (existing)
 | `/api/editor/generate-background/batch` | POST | Batch generate backgrounds |
 | `/api/editor/export` | POST | Export editor slides as ZIP |
 | `/api/editor/update-generation` | POST | Re-render dirty slides & overwrite generated_images |
-| `/api/backgrounds` | GET/POST | List/upload backgrounds |
+| `/api/backgrounds` | GET/POST | List/upload backgrounds (GET supports folderId filter) |
 | `/api/backgrounds/[id]` | DELETE | Delete background |
+| `/api/backgrounds/folders` | GET/POST | List/create background folders |
+| `/api/backgrounds/folders/[id]` | PATCH/DELETE | Rename/delete background folder |
+| `/api/backgrounds/upload-batch` | POST | Multi-upload files to folder |
+| `/api/hooks/sessions` | GET/POST | List/create hook sessions |
+| `/api/hooks/sessions/[id]` | GET/PATCH/DELETE | Manage a hook session |
+| `/api/hooks/sessions/[id]/snapshot` | POST | Extract snapshot frame |
+| `/api/hooks/sessions/[id]/generate-images` | POST | Generate images via Replicate |
+| `/api/hooks/sessions/[id]/generate-images/retry` | POST | Retry failed image |
+| `/api/hooks/sessions/[id]/select-images` | PATCH | Select images for video gen |
+| `/api/hooks/sessions/[id]/generate-videos` | POST | Generate videos via Replicate |
+| `/api/hooks/tiktok-video` | POST | Download TikTok video for hook input |
+| `/api/hooks/webhook` | POST | Replicate webhook receiver |
+| `/api/hooks/library` | GET | List completed hook videos |
+| `/api/hooks/videos/[id]` | PATCH/DELETE | Update/delete hook video |
+| `/api/hooks/videos/[id]/download` | GET | Download hook video |
 
 ## Queue Architecture
 

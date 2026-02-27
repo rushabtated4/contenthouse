@@ -9,18 +9,29 @@ export async function GET(request: NextRequest) {
     const page = parseInt(searchParams.get("page") || "1", 10);
     const limit = parseInt(searchParams.get("limit") || "20", 10);
     const offset = (page - 1) * limit;
+    const folderId = searchParams.get("folderId");
 
     const supabase = createServerClient();
 
-    const { count } = await supabase
+    let countQuery = supabase
       .from("background_library")
       .select("*", { count: "exact", head: true });
-
-    const { data, error } = await supabase
+    let dataQuery = supabase
       .from("background_library")
       .select("*")
       .order("created_at", { ascending: false })
       .range(offset, offset + limit - 1);
+
+    if (folderId === "unfiled") {
+      countQuery = countQuery.is("folder_id", null);
+      dataQuery = dataQuery.is("folder_id", null);
+    } else if (folderId) {
+      countQuery = countQuery.eq("folder_id", folderId);
+      dataQuery = dataQuery.eq("folder_id", folderId);
+    }
+
+    const { count } = await countQuery;
+    const { data, error } = await dataQuery;
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
@@ -63,6 +74,8 @@ export async function POST(request: NextRequest) {
     const { url: imageUrl } = await uploadToStorage("backgrounds", strippedBuffer, "png");
 
     const supabase = createServerClient();
+    const folderId = formData.get("folderId") as string | null;
+
     const { data: bgRow, error: insertError } = await supabase
       .from("background_library")
       .insert({
@@ -70,6 +83,7 @@ export async function POST(request: NextRequest) {
         source: "uploaded",
         prompt: null,
         source_video_id: null,
+        folder_id: folderId || null,
       })
       .select()
       .single();

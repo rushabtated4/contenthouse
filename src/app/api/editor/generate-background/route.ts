@@ -62,6 +62,15 @@ export async function POST(request: NextRequest) {
 
     const { url: imageUrl } = await uploadToStorage("backgrounds", strippedBuffer, "png");
 
+    // Create a folder for this generated background
+    const now = new Date();
+    const folderName = `Generated - ${now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+    const { data: folder } = await supabase
+      .from("background_folders")
+      .insert({ name: folderName })
+      .select("id")
+      .single();
+
     const { data: bgRow, error: insertError } = await supabase
       .from("background_library")
       .insert({
@@ -71,6 +80,7 @@ export async function POST(request: NextRequest) {
         source_video_id: videoId,
         width: 1080,
         height: 1350,
+        folder_id: folder?.id || null,
       })
       .select("id")
       .single();
@@ -82,6 +92,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       imageUrl,
       libraryId: bgRow?.id || null,
+      folderId: folder?.id || null,
     });
   } catch (err) {
     console.error("Generate background error:", err);

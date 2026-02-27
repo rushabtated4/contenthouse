@@ -163,7 +163,7 @@ export default function GenerateDetailPage({
 
   return (
     <div className="space-y-6">
-      <VideoMetaBar video={video} />
+      {activeTab !== "editor" && <VideoMetaBar video={video} />}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>

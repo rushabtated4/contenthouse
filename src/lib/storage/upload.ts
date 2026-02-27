@@ -1,7 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { v4 as uuidv4 } from "uuid";
 
-type BucketName = "originals" | "generated" | "overlays" | "backgrounds";
+type BucketName = "originals" | "generated" | "overlays" | "backgrounds" | "hook-videos" | "hook-images";
 
 interface UploadResult {
   url: string;
@@ -25,7 +25,13 @@ export async function uploadToStorage(
         ? "image/jpeg"
         : fileExtension === "webp"
           ? "image/webp"
-          : "application/octet-stream";
+          : fileExtension === "mp4"
+            ? "video/mp4"
+            : fileExtension === "webm"
+              ? "video/webm"
+              : fileExtension === "mov"
+                ? "video/quicktime"
+                : "application/octet-stream";
 
   const { error } = await supabase.storage
     .from(bucket)

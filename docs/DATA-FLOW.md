@@ -327,6 +327,157 @@ VideoGrid renders:
         Fetches next page, appends to existing list
 ```
 
+## 9. Hook Creator
+
+```
+User navigates to /hooks/new
+        │
+        ▼
+HookWizard mounts → POST /api/hooks/sessions  { source_type: "tiktok"|"upload" }
+        │
+        └─► INSERT hook_sessions (step=1, status="draft")
+
+--- Step 1: Source ---
+
+User pastes TikTok URL
+        │
+        ▼
+POST /api/hooks/tiktok-video  { url }
+        │
+        ├─► RapidAPI: GET /api/post/detail?videoId={id}
+        ├─► Download video from TikTok CDN
+        ├─► Upload to `hook-videos` bucket
+        └─► PATCH hook_sessions SET video_url, source_url, step=2
+
+        OR
+
+User uploads video file
+        │
+        ▼
+multipart/form-data → upload to `hook-videos` bucket
+        └─► PATCH hook_sessions SET video_url, step=2
+
+--- Step 2: Snapshot ---
+
+User scrubs video to desired frame
+        │
+        ▼
+Click "Use this frame"
+        │
+        ▼
+POST /api/hooks/sessions/[id]/snapshot  { time: 2.5 }
+        │
+        ├─► Download video from storage
+        ├─► ffmpeg: extract frame at time → PNG buffer
+        ├─► Upload to `hook-images` bucket
+        └─► PATCH hook_sessions SET snapshot_url, snapshot_time, step=3
+
+--- Step 3: Image Prompt ---
+
+User writes image prompt and sets numImages
+        │
+        ▼
+Click "Next"
+        │
+        ▼
+POST /api/hooks/sessions/[id]/generate-images  { prompt, numImages }
+        │
+        ├─► INSERT hook_generated_images[] (status="pending")
+        ├─► PATCH hook_sessions SET image_prompt, status="generating_images", step=4
+        │
+        ├─► createNanaBananaPrediction({
+        │       imageUrl: session.snapshot_url,
+        │       prompt,
+        │       numImages,
+        │       webhookUrl: NEXT_PUBLIC_APP_URL + "/api/hooks/webhook"
+        │   })
+        │
+        └─► UPDATE hook_generated_images SET replicate_id
+
+--- Step 4: Generating Images (polls) ---
+
+HookGeneratingImagesStep polls session every 3s
+        │
+        ▼
+When Replicate completes:
+        │
+        ▼
+POST /api/hooks/webhook  (Replicate → webhook)
+        │
+        ├─► verifyReplicateWebhook(request, REPLICATE_WEBHOOK_SECRET)
+        ├─► Identify record by replicate_id in hook_generated_images
+        ├─► Download output images from Replicate CDN
+        ├─► Upload to `hook-images` bucket
+        ├─► UPDATE hook_generated_images SET status="completed", image_url
+        └─► If all completed: PATCH hook_sessions SET status="selecting_images", step=5
+
+--- Step 5: Select Images ---
+
+User selects images to use for video generation
+        │
+        ▼
+Click "Next"
+        │
+        ▼
+PATCH /api/hooks/sessions/[id]/select-images  { selectedImageIds: ["uuid1", "uuid2"] }
+        │
+        ├─► UPDATE hook_generated_images SET selected=true WHERE id IN selectedImageIds
+        └─► PATCH hook_sessions SET step=6
+
+--- Step 6: Video Prompt ---
+
+User writes video prompt, sets duration and aspect ratio
+        │
+        ▼
+Click "Generate Videos"
+        │
+        ▼
+POST /api/hooks/sessions/[id]/generate-videos  { prompt, duration, aspectRatio }
+        │
+        ├─► SELECT hook_generated_images WHERE session_id AND selected=true
+        ├─► INSERT hook_generated_videos[] (one per selected image, status="pending")
+        ├─► PATCH hook_sessions SET video_prompt, video_duration, video_aspect_ratio, status="generating_videos", step=7
+        │
+        ├─► For each selected image:
+        │       └─► createKlingPrediction({
+        │               imageUrl: image.image_url,
+        │               prompt, duration, aspectRatio,
+        │               webhookUrl: NEXT_PUBLIC_APP_URL + "/api/hooks/webhook"
+        │           })
+        │               └─► UPDATE hook_generated_videos SET replicate_id
+        │
+        └─► Return { videos: [...] }
+
+--- Step 7: Generating Videos (polls) ---
+
+HookGeneratingVideosStep polls session every 5s
+        │
+        ▼
+When Replicate completes:
+        │
+        ▼
+POST /api/hooks/webhook  (Replicate → webhook)
+        │
+        ├─► Identify record by replicate_id in hook_generated_videos
+        ├─► Download output video from Replicate CDN
+        ├─► Upload to `hook-videos` bucket
+        ├─► Extract thumbnail frame via ffmpeg → upload to `hook-images` bucket
+        ├─► UPDATE hook_generated_videos SET status="completed", video_url, thumbnail_url
+        └─► If all completed: PATCH hook_sessions SET status="completed"
+
+--- Library ---
+
+User navigates to /hooks
+        │
+        ▼
+useHookLibrary() → GET /api/hooks/library?page=1&limit=20
+        │
+        ├─► SELECT hook_generated_videos WHERE status="completed"
+        │       JOIN hook_sessions (id, title)
+        │
+        └─► Return { videos, total, page, limit, hasMore }
+```
+
 ## 8. Generated Carousels
 
 ```

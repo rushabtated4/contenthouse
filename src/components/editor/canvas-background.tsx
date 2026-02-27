@@ -8,10 +8,12 @@ import type Konva from "konva";
 interface CanvasBackgroundProps {
   url: string;
   backgroundColor: string | null;
+  backgroundTintColor: string | null;
+  backgroundTintOpacity: number;
   canvasHeight: number;
 }
 
-export function CanvasBackground({ url, backgroundColor, canvasHeight }: CanvasBackgroundProps) {
+export function CanvasBackground({ url, backgroundColor, backgroundTintColor, backgroundTintOpacity, canvasHeight }: CanvasBackgroundProps) {
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const imageRef = useRef<Konva.Image>(null);
 
@@ -68,15 +70,29 @@ export function CanvasBackground({ url, backgroundColor, canvasHeight }: CanvasB
     cropY = (image.naturalHeight - cropH) / 2;
   }
 
+  const showTint = backgroundTintColor && backgroundTintOpacity > 0;
+
   return (
-    <KonvaImage
-      ref={imageRef}
-      image={image}
-      x={0}
-      y={0}
-      width={CANVAS_WIDTH}
-      height={canvasHeight}
-      crop={{ x: cropX, y: cropY, width: cropW, height: cropH }}
-    />
+    <>
+      <KonvaImage
+        ref={imageRef}
+        image={image}
+        x={0}
+        y={0}
+        width={CANVAS_WIDTH}
+        height={canvasHeight}
+        crop={{ x: cropX, y: cropY, width: cropW, height: cropH }}
+      />
+      {showTint && (
+        <Rect
+          x={0}
+          y={0}
+          width={CANVAS_WIDTH}
+          height={canvasHeight}
+          fill={backgroundTintColor}
+          opacity={backgroundTintOpacity}
+        />
+      )}
+    </>
   );
 }

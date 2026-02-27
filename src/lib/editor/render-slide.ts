@@ -58,6 +58,8 @@ export function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): str
   }
 
   // Compute word-wrapped layout using server-side opentype.js measurement
+  const wordSpacing = block.wordSpacing ?? 0;
+
   const lines = serverComputeSegmentLayout(
     segments,
     width,
@@ -65,6 +67,7 @@ export function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): str
     block.fontWeight,
     lineHeight,
     letterSpacing,
+    wordSpacing,
     block.alignment
   );
 
@@ -121,6 +124,7 @@ export function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): str
   }
 
   const letterSpacingAttr = letterSpacing > 0 ? `letter-spacing="${letterSpacing}"` : "";
+  const wordSpacingAttr = wordSpacing !== 0 ? `word-spacing="${wordSpacing}"` : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${CANVAS_WIDTH}" height="${canvasHeight}">
   ${fontCss}
@@ -133,6 +137,7 @@ export function buildSingleBlockSvg(block: TextBlock, canvasHeight: number): str
       font-weight="${block.fontWeight}"
       fill="${escapeXml(block.color)}"
       ${letterSpacingAttr}
+      ${wordSpacingAttr}
       ${strokeAttr}
       ${filterAttr}
     >${tspanParts.join("")}</text>
@@ -210,6 +215,8 @@ export async function processOverlay(
 interface SlideInput {
   backgroundUrl?: string | null;
   backgroundColor?: string | null;
+  backgroundTintColor?: string | null;
+  backgroundTintOpacity?: number;
   originalImageUrl?: string;
   textBlocks: TextBlock[];
   overlayImages?: OverlayImage[];
@@ -245,6 +252,14 @@ export async function renderSlide(
     pipeline = sharp(bgBuffer).resize(CANVAS_WIDTH, canvasHeight, { fit: "cover" });
   }
 
+  // Tint overlay (applied on top of background image, before text/overlays)
+  const tintComposites: sharp.OverlayOptions[] = [];
+  if (!bgColor && slide.backgroundTintColor && (slide.backgroundTintOpacity ?? 0) > 0) {
+    const tint = hexToRgb(slide.backgroundTintColor);
+    const tintSvg = `<svg width="${CANVAS_WIDTH}" height="${canvasHeight}"><rect width="100%" height="100%" fill="rgba(${tint.r},${tint.g},${tint.b},${slide.backgroundTintOpacity})" /></svg>`;
+    tintComposites.push({ input: Buffer.from(tintSvg), top: 0, left: 0 });
+  }
+
   // Collect all elements and sort by z-order
   const elements: { type: "text" | "overlay"; zIndex: number; data: TextBlock | OverlayImage }[] = [];
 
@@ -277,8 +292,9 @@ export async function renderSlide(
     }
   }
 
-  if (sharpComposites.length > 0) {
-    pipeline = pipeline.composite(sharpComposites);
+  const allComposites = [...tintComposites, ...sharpComposites];
+  if (allComposites.length > 0) {
+    pipeline = pipeline.composite(allComposites);
   }
 
   switch (outputFormat) {

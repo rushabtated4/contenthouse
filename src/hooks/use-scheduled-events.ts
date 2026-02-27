@@ -10,6 +10,7 @@ export interface ScheduledEvent {
   backgroundColor?: string;
   borderColor?: string;
   extendedProps: {
+    type: "carousel" | "hook";
     setId: string;
     videoId: string | null;
     channelId: string | null;
@@ -22,16 +23,40 @@ export interface ScheduledEvent {
 function mapEvents(data: unknown): ScheduledEvent[] {
   if (!Array.isArray(data)) return [];
   return data.map((s: Record<string, unknown>) => {
-    const video = s.videos as Record<string, unknown> | null;
+    const itemType = (s._type as string) || "carousel";
     const account = s.project_accounts as Record<string, unknown> | null;
+    const isPosted = !!s.posted_at;
+    const project = (account as Record<string, unknown>)?.projects as Record<string, unknown> | null;
+    const projectColor = (project?.color as string) || undefined;
+
+    if (itemType === "hook") {
+      // Hook video event
+      const hookImage = s.hook_generated_images as Record<string, unknown> | null;
+      return {
+        id: s.id as string,
+        title: (s.notes as string)?.slice(0, 50) || "Hook Video",
+        start: s.scheduled_at as string,
+        backgroundColor: isPosted ? "#16a34a" : projectColor || "#8b5cf6",
+        borderColor: isPosted ? "#16a34a" : projectColor || "#8b5cf6",
+        extendedProps: {
+          type: "hook" as const,
+          setId: s.id as string,
+          videoId: null,
+          channelId: s.channel_id as string | null,
+          thumbnail: (hookImage?.image_url as string) || null,
+          channelLabel: (account?.username as string) || null,
+          postedAt: (s.posted_at as string) || null,
+        },
+      };
+    }
+
+    // Carousel event (existing logic)
+    const video = s.videos as Record<string, unknown> | null;
     const images =
       (s.generated_images as Array<Record<string, unknown>>) || [];
     const firstCompleted = images.find(
       (i) => i.status === "completed" && i.image_url
     );
-    const isPosted = !!s.posted_at;
-    const project = (account as Record<string, unknown>)?.projects as Record<string, unknown> | null;
-    const projectColor = (project?.color as string) || undefined;
 
     return {
       id: s.id as string,
@@ -40,6 +65,7 @@ function mapEvents(data: unknown): ScheduledEvent[] {
       backgroundColor: isPosted ? "#16a34a" : projectColor,
       borderColor: isPosted ? "#16a34a" : projectColor,
       extendedProps: {
+        type: "carousel" as const,
         setId: s.id as string,
         videoId: (s.video_id as string) || null,
         channelId: s.channel_id as string | null,

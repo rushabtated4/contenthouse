@@ -808,6 +808,7 @@ Extract text blocks from carousel slides using GPT-5.2 vision with structured ou
           "textTransform": "uppercase",
           "lineHeight": 1.2,
           "letterSpacing": 0,
+          "wordSpacing": 0,
           "backgroundPadding": 20,
           "backgroundCornerRadius": 16,
           "backgroundBorderColor": "#000000",
@@ -844,7 +845,8 @@ Generate a text-free background for a single slide using OpenAI gpt-image-1.
 ```json
 {
   "imageUrl": "https://storage.supabase.co/.../backgrounds/uuid.png",
-  "libraryId": "uuid"
+  "libraryId": "uuid",
+  "folderId": "uuid"
 }
 ```
 
@@ -853,8 +855,9 @@ Generate a text-free background for a single slide using OpenAI gpt-image-1.
 2. Call OpenAI images.edit with background removal prompt
 3. Strip metadata, resize to 1080x1350
 4. Upload to `backgrounds` bucket
-5. Insert into `background_library` table
-6. Return public URL and library ID
+5. Create a `background_folders` row named `"Generated - <date> <time>"`
+6. Insert into `background_library` table with `folder_id`
+7. Return public URL, library ID, and folder ID
 
 **Errors:**
 - `400` — Missing videoId or slideIndex
@@ -864,7 +867,7 @@ Generate a text-free background for a single slide using OpenAI gpt-image-1.
 
 ## POST /api/editor/generate-background/batch
 
-Batch generate text-free backgrounds for multiple slides.
+Batch generate text-free backgrounds for multiple slides. All slides are processed in parallel via `Promise.all()` (rate limiter still enforces 50 req/min).
 
 **File:** `src/app/api/editor/generate-background/batch/route.ts`
 **Max Duration:** 300s (route-level export)
@@ -881,11 +884,12 @@ Batch generate text-free backgrounds for multiple slides.
 **Response (200):**
 ```json
 {
-  "results": [
+  "backgrounds": [
     { "slideIndex": 0, "imageUrl": "url", "libraryId": "uuid" },
     { "slideIndex": 1, "imageUrl": "url", "libraryId": "uuid" },
-    { "slideIndex": 2, "error": "Failed to generate" }
-  ]
+    { "slideIndex": 2, "imageUrl": "", "libraryId": null }
+  ],
+  "folderId": "uuid"
 }
 ```
 
@@ -936,6 +940,52 @@ Export editor slides as a downloadable ZIP. Composites text blocks onto backgrou
 **Errors:**
 - `400` — Missing slides array
 - `500` — Image processing or ZIP creation failure
+
+---
+
+## POST /api/editor/create-generation
+
+Render all editor slides and insert new `generated_images` rows. Used when an `editor_draft` set has no existing generated images. Also updates the set status from `editor_draft` to `completed`.
+
+**File:** `src/app/api/editor/create-generation/route.ts`
+
+**Request:**
+```json
+{
+  "setId": "uuid",
+  "slides": [
+    {
+      "editorIndex": 0,
+      "slide": {
+        "backgroundUrl": "https://storage.url/bg.png",
+        "backgroundColor": null,
+        "backgroundTintColor": null,
+        "backgroundTintOpacity": 0,
+        "originalImageUrl": "https://storage.url/original.png",
+        "textBlocks": [...],
+        "overlayImages": [...]
+      }
+    }
+  ],
+  "outputFormat": "png",
+  "aspectRatio": "2:3"
+}
+```
+
+**Response:**
+```json
+{
+  "created": [
+    { "imageId": "uuid", "imageUrl": "https://storage.url/new.png", "slideIndex": 0 }
+  ]
+}
+```
+
+**Errors:**
+- `400` — Missing setId or slides
+- `500` — Render or upload failure
+
+`maxDuration = 300`
 
 ---
 
@@ -1043,6 +1093,7 @@ List saved backgrounds from the background library.
 **Query Params:**
 - `page` — Page number (default: 1)
 - `limit` — Results per page (default: 50)
+- `folderId` — (optional) Filter by folder: UUID for a specific folder, `"unfiled"` for backgrounds with no folder, omitted for all backgrounds
 
 **Response (200):**
 ```json
@@ -1054,6 +1105,7 @@ List saved backgrounds from the background library.
       "source": "generated",
       "prompt": "Remove all text...",
       "source_video_id": "uuid",
+      "folder_id": "uuid | null",
       "width": 1080,
       "height": 1350,
       "created_at": "ISO timestamp"
@@ -1074,6 +1126,7 @@ Upload a background image to the library.
 
 **Request:** `multipart/form-data`
 - `file` — Image file (required)
+- `folderId` — (optional) UUID of folder to assign the background to
 
 **Response (200):**
 ```json
@@ -1083,6 +1136,7 @@ Upload a background image to the library.
   "source": "uploaded",
   "prompt": null,
   "source_video_id": null,
+  "folder_id": "uuid | null",
   "width": null,
   "height": null,
   "created_at": "ISO timestamp"
@@ -1105,6 +1159,429 @@ Delete a background from the library and storage.
 **Errors:**
 - `404` — Background not found
 - `500` — Storage or database failure
+
+---
+
+## GET /api/backgrounds/folders
+
+List all background folders with cover image and image count.
+
+**File:** `src/app/api/backgrounds/folders/route.ts`
+
+**Response (200):**
+```json
+{
+  "folders": [
+    {
+      "id": "uuid",
+      "name": "Folder Name",
+      "created_at": "ISO timestamp",
+      "updated_at": "ISO timestamp",
+      "cover_url": "https://storage.supabase.co/.../backgrounds/uuid.png",
+      "image_count": 12
+    }
+  ]
+}
+```
+
+## POST /api/backgrounds/folders
+
+Create a new background folder.
+
+**File:** `src/app/api/backgrounds/folders/route.ts`
+
+**Request:**
+```json
+{ "name": "Folder Name" }
+```
+
+**Response (200):**
+```json
+{ "folder": { "id": "uuid", "name": "Folder Name", "created_at": "ISO timestamp", "updated_at": "ISO timestamp" } }
+```
+
+**Errors:**
+- `400` — Missing name
+- `500` — Database error
+
+---
+
+## PATCH /api/backgrounds/folders/[id]
+
+Rename a background folder.
+
+**File:** `src/app/api/backgrounds/folders/[id]/route.ts`
+
+**Request:**
+```json
+{ "name": "New Name" }
+```
+
+**Response (200):**
+```json
+{ "folder": { "id": "uuid", "name": "New Name", "created_at": "ISO timestamp", "updated_at": "ISO timestamp" } }
+```
+
+**Errors:**
+- `400` — Missing name
+- `500` — Database error
+
+## DELETE /api/backgrounds/folders/[id]
+
+Delete a background folder.
+
+**File:** `src/app/api/backgrounds/folders/[id]/route.ts`
+
+**Query Params:**
+- `deleteImages` — `true` to also delete all images in the folder; `false` (default) to unfile them (set `folder_id` to null)
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Errors:**
+- `500` — Database or storage error
+
+---
+
+## POST /api/backgrounds/upload-batch
+
+Upload multiple background images to a folder at once.
+
+**File:** `src/app/api/backgrounds/upload-batch/route.ts`
+**Max Duration:** 300s (route-level export)
+
+**Request:** `multipart/form-data`
+- `files` — One or more image files (required)
+- `folderId` — (optional) UUID of folder to assign backgrounds to
+
+**Response (200):**
+```json
+{
+  "uploaded": [
+    { "id": "uuid", "image_url": "https://storage.supabase.co/.../backgrounds/uuid.png" }
+  ]
+}
+```
+
+**Errors:**
+- `400` — No files provided
+- `500` — Storage or database failure
+
+---
+
+---
+
+## Hook Creator API
+
+### GET /api/hooks/sessions
+
+List all hook creator sessions.
+
+**File:** `src/app/api/hooks/sessions/route.ts`
+
+**Response (200):**
+```json
+{
+  "sessions": [
+    {
+      "id": "uuid",
+      "title": "string | null",
+      "step": 1,
+      "source_type": "tiktok | upload",
+      "source_url": "string | null",
+      "video_url": "string | null",
+      "snapshot_url": "string | null",
+      "snapshot_time": 0.0,
+      "status": "draft | generating_images | selecting_images | generating_videos | completed",
+      "created_at": "ISO timestamp",
+      "updated_at": "ISO timestamp"
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/hooks/sessions
+
+Create a new hook creator session.
+
+**File:** `src/app/api/hooks/sessions/route.ts`
+
+**Request:**
+```json
+{
+  "title": "optional string",
+  "source_type": "tiktok | upload",
+  "source_url": "https://www.tiktok.com/...",
+  "video_url": "string (storage URL if uploaded)"
+}
+```
+
+**Response (200):**
+```json
+{ "session": { ...HookSession } }
+```
+
+---
+
+### GET /api/hooks/sessions/[id]
+
+Fetch a single hook session with its generated images and videos.
+
+**File:** `src/app/api/hooks/sessions/[id]/route.ts`
+
+**Response (200):**
+```json
+{
+  "session": {
+    "id": "uuid",
+    "hook_generated_images": [...],
+    "hook_generated_videos": [...]
+  }
+}
+```
+
+**Errors:**
+- `404` — Session not found
+
+---
+
+### PATCH /api/hooks/sessions/[id]
+
+Update hook session fields (title, step, config, etc.).
+
+**File:** `src/app/api/hooks/sessions/[id]/route.ts`
+
+**Request:** Partial `HookSession` fields to update.
+
+**Response (200):** `{ "session": { ...HookSession } }`
+
+---
+
+### DELETE /api/hooks/sessions/[id]
+
+Delete a hook session and its generated images/videos.
+
+**File:** `src/app/api/hooks/sessions/[id]/route.ts`
+
+**Response (200):** `{ "success": true }`
+
+---
+
+### POST /api/hooks/sessions/[id]/snapshot
+
+Extract a snapshot frame from the session's video at a given timestamp.
+
+**File:** `src/app/api/hooks/sessions/[id]/snapshot/route.ts`
+
+**Request:**
+```json
+{ "time": 2.5 }
+```
+
+**Response (200):**
+```json
+{ "snapshotUrl": "https://storage.supabase.co/.../hook-images/uuid.png" }
+```
+
+**Flow:**
+1. Download session video from storage
+2. Use ffmpeg to extract frame at `time` seconds
+3. Upload to `hook-images` bucket
+4. Update `hook_sessions.snapshot_url` and `snapshot_time`
+
+---
+
+### POST /api/hooks/sessions/[id]/generate-images
+
+Generate hook images from the session's snapshot via Replicate Nano Banana Pro.
+
+**File:** `src/app/api/hooks/sessions/[id]/generate-images/route.ts`
+
+**Request:**
+```json
+{
+  "prompt": "A dynamic hook image...",
+  "numImages": 4
+}
+```
+
+**Response (200):**
+```json
+{ "images": [{ "id": "uuid", "status": "pending" }] }
+```
+
+**Flow:**
+1. Create `hook_generated_images` records with status `pending`
+2. Submit prediction to Replicate Nano Banana Pro
+3. Webhook at `POST /api/hooks/webhook` receives completion
+4. Update session step to `selecting_images`
+
+---
+
+### POST /api/hooks/sessions/[id]/generate-images/retry
+
+Retry a failed hook image generation.
+
+**File:** `src/app/api/hooks/sessions/[id]/generate-images/retry/route.ts`
+
+**Request:**
+```json
+{ "imageId": "uuid" }
+```
+
+**Response (200):** `{ "success": true }`
+
+---
+
+### PATCH /api/hooks/sessions/[id]/select-images
+
+Mark which generated images are selected for video generation and advance the wizard step.
+
+**File:** `src/app/api/hooks/sessions/[id]/select-images/route.ts`
+
+**Request:**
+```json
+{ "selectedImageIds": ["uuid1", "uuid2"] }
+```
+
+**Response (200):** `{ "success": true }`
+
+---
+
+### POST /api/hooks/sessions/[id]/generate-videos
+
+Generate hook videos from selected images via Replicate Kling v2.6.
+
+**File:** `src/app/api/hooks/sessions/[id]/generate-videos/route.ts`
+
+**Request:**
+```json
+{
+  "prompt": "A smooth cinematic motion...",
+  "duration": 5,
+  "aspectRatio": "9:16"
+}
+```
+
+**Response (200):**
+```json
+{ "videos": [{ "id": "uuid", "status": "pending" }] }
+```
+
+**Flow:**
+1. Create `hook_generated_videos` records for each selected image
+2. Submit prediction to Replicate Kling v2.6 per image
+3. Webhook at `POST /api/hooks/webhook` receives completion
+4. Update session step to `completed` when all done
+
+---
+
+### POST /api/hooks/tiktok-video
+
+Download a TikTok video and store it in the `hook-videos` bucket for use as hook input.
+
+**File:** `src/app/api/hooks/tiktok-video/route.ts`
+
+**Request:**
+```json
+{ "url": "https://www.tiktok.com/@user/video/123456" }
+```
+
+**Response (200):**
+```json
+{ "videoUrl": "https://storage.supabase.co/.../hook-videos/uuid.mp4" }
+```
+
+---
+
+### POST /api/hooks/webhook
+
+Replicate webhook receiver. Updates `hook_generated_images` or `hook_generated_videos` status when a prediction completes or fails.
+
+**File:** `src/app/api/hooks/webhook/route.ts`
+
+**Request:** Replicate webhook payload (HMAC-SHA256 verified via `REPLICATE_WEBHOOK_SECRET`).
+
+**Response (200):** `{ "received": true }`
+
+**Flow:**
+1. Verify `replicate-webhook-id` + `replicate-webhook-signature` headers
+2. Identify record type from prediction metadata
+3. Download output from Replicate CDN and upload to Supabase storage
+4. Update record status (`completed` or `failed`) and output URL
+5. Recalculate parent session status
+
+---
+
+### GET /api/hooks/library
+
+List all completed hook videos across all sessions.
+
+**File:** `src/app/api/hooks/library/route.ts`
+
+**Query Params:**
+- `page` — Page number (default: 1)
+- `limit` — Results per page (default: 20)
+
+**Response (200):**
+```json
+{
+  "videos": [
+    {
+      "id": "uuid",
+      "session_id": "uuid",
+      "video_url": "string",
+      "thumbnail_url": "string | null",
+      "prompt": "string | null",
+      "duration": 5,
+      "status": "completed",
+      "created_at": "ISO timestamp",
+      "hook_sessions": { "id": "uuid", "title": "string | null" }
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "limit": 20,
+  "hasMore": true
+}
+```
+
+---
+
+### PATCH /api/hooks/videos/[id]
+
+Update a hook video record (e.g., title or notes).
+
+**File:** `src/app/api/hooks/videos/[id]/route.ts`
+
+**Request:** Partial `HookGeneratedVideo` fields.
+
+**Response (200):** `{ "video": { ...HookGeneratedVideo } }`
+
+---
+
+### DELETE /api/hooks/videos/[id]
+
+Delete a hook video record and its storage file.
+
+**File:** `src/app/api/hooks/videos/[id]/route.ts`
+
+**Response (200):** `{ "success": true }`
+
+---
+
+### GET /api/hooks/videos/[id]/download
+
+Download a completed hook video file.
+
+**File:** `src/app/api/hooks/videos/[id]/download/route.ts`
+
+**Response:** Binary video file (MP4)
+**Content-Type:** `video/mp4`
 
 ---
 

@@ -51,6 +51,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
   const slides = useEditorStore((s) => s.slides);
   const [textHeight, setTextHeight] = useState(block.fontSize * (block.lineHeight ?? 1.2));
   const [layoutLines, setLayoutLines] = useState<LayoutLine[]>([]);
+  const [isEditing, setIsEditing] = useState(false);
 
   const padding = block.backgroundPadding ?? BLOCK_PADDING;
   const cornerRadius = block.backgroundCornerRadius ?? BLOCK_CORNER_RADIUS;
@@ -61,7 +62,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
 
   const fontStyle = String(block.fontWeight);
   const displayText = applyTextTransform(block.text, block.textTransform);
-  const useSegments = hasSegments(block);
+  const useSegments = hasSegments(block) || (block.wordSpacing ?? 0) !== 0;
   const segments = getEffectiveSegments(block);
 
   // Compute segment layout when needed
@@ -84,6 +85,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
       block.fontWeight,
       block.lineHeight ?? 1.2,
       block.letterSpacing ?? 0,
+      block.wordSpacing ?? 0,
       block.alignment,
       ctx
     );
@@ -91,14 +93,14 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
     setLayoutLines(lines);
     const computedHeight = lines.length * block.fontSize * (block.lineHeight ?? 1.2);
     setTextHeight(computedHeight);
-  }, [block.text, block.segments, block.fontSize, block.fontWeight, block.lineHeight, block.letterSpacing, block.textTransform, block.alignment, width, useSegments]);
+  }, [block.text, block.segments, block.fontSize, block.fontWeight, block.lineHeight, block.letterSpacing, block.wordSpacing, block.textTransform, block.alignment, width, useSegments]);
 
   // Keep textHeight in sync for non-segment rendering
   useEffect(() => {
     if (!useSegments && textRef.current) {
       setTextHeight(textRef.current.height());
     }
-  }, [block.text, block.fontSize, block.fontWeight, block.lineHeight, block.letterSpacing, block.textTransform, width, useSegments]);
+  }, [block.text, block.fontSize, block.fontWeight, block.lineHeight, block.letterSpacing, block.wordSpacing, block.textTransform, width, useSegments]);
 
   // Attach transformer when selected
   useEffect(() => {
@@ -226,8 +228,13 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
     const stageBox = stageContainer.getBoundingClientRect();
     const scale = stageBox.width / CANVAS_WIDTH;
 
+    // Hide the Konva group while editing
+    setIsEditing(true);
+
     const textarea = document.createElement("textarea");
-    stageContainer.parentNode?.appendChild(textarea);
+    // Append inside the stage container for relative positioning
+    stageContainer.style.position = "relative";
+    stageContainer.appendChild(textarea);
 
     const hexToRgb = (hex: string) => {
       const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
@@ -247,32 +254,42 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
 
     textarea.value = editText;
     textarea.style.position = "absolute";
-    textarea.style.top = `${stageBox.top + y * scale + window.scrollY}px`;
-    textarea.style.left = `${stageBox.left + x * scale + window.scrollX}px`;
-    textarea.style.width = `${width * scale}px`;
-    textarea.style.minHeight = "40px";
+    // Position relative to the stage container
+    textarea.style.top = `${(y - padding) * scale}px`;
+    textarea.style.left = `${(x - padding) * scale}px`;
+    textarea.style.width = `${(width + padding * 2) * scale}px`;
+    textarea.style.height = `${(textHeight + padding * 2) * scale}px`;
     textarea.style.fontSize = `${block.fontSize * scale}px`;
     textarea.style.fontFamily = `${FONT_FAMILY}, sans-serif`;
     textarea.style.fontWeight = String(block.fontWeight);
     textarea.style.color = block.color;
     textarea.style.textAlign = block.alignment;
-    textarea.style.border = "2px solid #E8825F";
+    textarea.style.border = "none";
     textarea.style.borderRadius = `${scaledRadius}px`;
     textarea.style.padding = `${scaledPadding}px`;
     textarea.style.margin = "0";
     textarea.style.overflow = "hidden";
     textarea.style.background = bgRgba;
-    textarea.style.outline = "none";
+    textarea.style.outline = "1px solid rgba(232,130,95,0.5)";
     textarea.style.resize = "none";
+    textarea.style.boxSizing = "border-box";
     textarea.style.lineHeight = String(block.lineHeight ?? 1.2);
     textarea.style.letterSpacing = `${(block.letterSpacing ?? 0) * scale}px`;
+    textarea.style.wordSpacing = `${(block.wordSpacing ?? 0) * scale}px`;
     textarea.style.textTransform = block.textTransform === "none" ? "none" : block.textTransform;
-    textarea.style.zIndex = "1000";
+    textarea.style.zIndex = "10";
     if (block.hasStroke) {
       textarea.style.webkitTextStroke = `${block.strokeWidth * scale}px ${block.strokeColor}`;
     }
 
     textarea.focus();
+
+    // Auto-grow height as user types
+    const autoGrow = () => {
+      textarea.style.height = "auto";
+      textarea.style.height = `${textarea.scrollHeight}px`;
+    };
+    textarea.addEventListener("input", autoGrow);
 
     const finish = () => {
       const val = textarea.value;
@@ -289,6 +306,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
         updateTextBlock(slideIndex, block.id, { text: val });
       }
       textarea.remove();
+      setIsEditing(false);
     };
 
     textarea.addEventListener("blur", finish);
@@ -302,7 +320,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
         textarea.blur();
       }
     });
-  }, [block, slideIndex, x, y, width, padding, cornerRadius, updateTextBlock, useSegments]);
+  }, [block, slideIndex, x, y, width, padding, cornerRadius, textHeight, updateTextBlock, useSegments]);
 
   const bgWidth = width + padding * 2;
   const bgHeight = textHeight + padding * 2;
@@ -322,6 +340,9 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
           context.font = `${weight} ${block.fontSize}px ${fontFamily}`;
           if (block.letterSpacing) {
             (context as unknown as Record<string, unknown>).letterSpacing = `${block.letterSpacing}px`;
+          }
+          if (block.wordSpacing) {
+            (context as unknown as Record<string, unknown>).wordSpacing = `${block.wordSpacing}px`;
           }
 
           // Shadow
@@ -357,7 +378,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
 
       ctx.fillStrokeShape(shape);
     },
-    [layoutLines, block.fontSize, block.fontWeight, block.color, block.letterSpacing, block.hasStroke, block.strokeColor, block.strokeWidth, block.hasShadow, block.shadowColor, block.shadowBlur, block.shadowOffsetX, block.shadowOffsetY]
+    [layoutLines, block.fontSize, block.fontWeight, block.color, block.letterSpacing, block.wordSpacing, block.hasStroke, block.strokeColor, block.strokeWidth, block.hasShadow, block.shadowColor, block.shadowBlur, block.shadowOffsetX, block.shadowOffsetY]
   );
 
   const segmentHitFunc = useCallback(
@@ -376,6 +397,7 @@ export function CanvasTextBlock({ block, slideIndex, isSelected, onSelect, canva
         ref={groupRef}
         x={x - padding}
         y={y - padding}
+        visible={!isEditing}
         draggable
         onDragStart={handleDragStart}
         onDragMove={handleDragMove}

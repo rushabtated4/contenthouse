@@ -35,65 +35,76 @@ export async function POST(request: NextRequest) {
     const bgPrompt = prompt || DEFAULT_BG_PROMPT;
     const backgrounds: { slideIndex: number; imageUrl: string; libraryId: string | null }[] = [];
 
-    for (const slideIndex of slideIndexes) {
-      if (slideIndex >= video.original_images.length) continue;
+    // Create a single folder for all backgrounds in this batch
+    const now = new Date();
+    const folderName = `Generated - ${now.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} ${now.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", hour12: true })}`;
+    const { data: folder } = await supabase
+      .from("background_folders")
+      .insert({ name: folderName })
+      .select("id")
+      .single();
+    const folderId = folder?.id || null;
 
-      await rateLimiter.acquire();
+    const validIndexes = slideIndexes.filter((i) => i < video.original_images.length);
 
-      try {
-        const originalUrl = video.original_images[slideIndex];
-        const originalBuffer = await downloadImage(originalUrl);
+    const results = await Promise.all(
+      validIndexes.map(async (slideIndex) => {
+        await rateLimiter.acquire();
 
-        const originalBlob = new Blob([new Uint8Array(originalBuffer)], { type: "image/png" });
-        const originalFile = new File([originalBlob], "original.png", { type: "image/png" });
+        try {
+          const originalUrl = video.original_images[slideIndex];
+          const originalBuffer = await downloadImage(originalUrl);
 
-        const response = await openai.images.edit({
-          model: "gpt-image-1.5",
-          image: [originalFile],
-          prompt: bgPrompt,
-          n: 1,
-          size: "1024x1536",
-          quality: "medium",
-        });
+          const originalBlob = new Blob([new Uint8Array(originalBuffer)], { type: "image/png" });
+          const originalFile = new File([originalBlob], "original.png", { type: "image/png" });
 
-        const imageData = response.data?.[0];
-        if (!imageData?.b64_json) {
-          throw new Error("No image data returned");
-        }
-
-        const rawBuffer = Buffer.from(imageData.b64_json, "base64");
-        const strippedBuffer = await stripMetadataAndResize({
-          imageBuffer: rawBuffer,
-          outputFormat: "png",
-        });
-
-        const { url: imageUrl } = await uploadToStorage("backgrounds", strippedBuffer, "png");
-
-        const { data: bgRow } = await supabase
-          .from("background_library")
-          .insert({
-            image_url: imageUrl,
-            source: "generated",
+          const response = await openai.images.edit({
+            model: "gpt-image-1.5",
+            image: [originalFile],
             prompt: bgPrompt,
-            source_video_id: videoId,
-            width: 1080,
-            height: 1350,
-          })
-          .select("id")
-          .single();
+            n: 1,
+            size: "1024x1536",
+            quality: "medium",
+          });
 
-        backgrounds.push({
-          slideIndex,
-          imageUrl,
-          libraryId: bgRow?.id || null,
-        });
-      } catch (err) {
-        console.error(`Failed to generate background for slide ${slideIndex}:`, err);
-        backgrounds.push({ slideIndex, imageUrl: "", libraryId: null });
-      }
-    }
+          const imageData = response.data?.[0];
+          if (!imageData?.b64_json) {
+            throw new Error("No image data returned");
+          }
 
-    return NextResponse.json({ backgrounds });
+          const rawBuffer = Buffer.from(imageData.b64_json, "base64");
+          const strippedBuffer = await stripMetadataAndResize({
+            imageBuffer: rawBuffer,
+            outputFormat: "png",
+          });
+
+          const { url: imageUrl } = await uploadToStorage("backgrounds", strippedBuffer, "png");
+
+          const { data: bgRow } = await supabase
+            .from("background_library")
+            .insert({
+              image_url: imageUrl,
+              source: "generated",
+              prompt: bgPrompt,
+              source_video_id: videoId,
+              width: 1080,
+              height: 1350,
+              folder_id: folderId,
+            })
+            .select("id")
+            .single();
+
+          return { slideIndex, imageUrl, libraryId: bgRow?.id || null };
+        } catch (err) {
+          console.error(`Failed to generate background for slide ${slideIndex}:`, err);
+          return { slideIndex, imageUrl: "", libraryId: null };
+        }
+      })
+    );
+
+    backgrounds.push(...results);
+
+    return NextResponse.json({ backgrounds, folderId });
   } catch (err) {
     console.error("Batch background generation error:", err);
     return NextResponse.json(

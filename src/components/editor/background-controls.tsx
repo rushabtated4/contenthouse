@@ -18,6 +18,8 @@ export function BackgroundControls() {
   const applyBackgroundToAll = useEditorStore((s) => s.applyBackgroundToAll);
   const setBackgroundFromUpload = useEditorStore((s) => s.setBackgroundFromUpload);
   const setBackgroundColor = useEditorStore((s) => s.setBackgroundColor);
+  const setBackgroundTint = useEditorStore((s) => s.setBackgroundTint);
+  const applyTintToAll = useEditorStore((s) => s.applyTintToAll);
   const addTextBlock = useEditorStore((s) => s.addTextBlock);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [libraryOpen, setLibraryOpen] = useState(false);
@@ -98,6 +100,104 @@ export function BackgroundControls() {
           )}
         </div>
       </div>
+
+      {/* Background Tint (only when using a background image) */}
+      {activeSlide.backgroundUrl && !activeSlide.backgroundColor && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Image Tint</Label>
+          <div className="flex gap-2 items-center">
+            <input
+              type="color"
+              value={activeSlide.backgroundTintColor ?? "#000000"}
+              onChange={(e) =>
+                setBackgroundTint(
+                  activeSlideIndex,
+                  e.target.value,
+                  activeSlide.backgroundTintOpacity > 0 ? activeSlide.backgroundTintOpacity : 0.3
+                )
+              }
+              className="w-8 h-8 rounded border border-border cursor-pointer p-0.5"
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              title="Black tint"
+              onClick={() =>
+                setBackgroundTint(
+                  activeSlideIndex,
+                  "#000000",
+                  activeSlide.backgroundTintOpacity > 0 ? activeSlide.backgroundTintOpacity : 0.3
+                )
+              }
+            >
+              B
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-xs"
+              title="White tint"
+              onClick={() =>
+                setBackgroundTint(
+                  activeSlideIndex,
+                  "#FFFFFF",
+                  activeSlide.backgroundTintOpacity > 0 ? activeSlide.backgroundTintOpacity : 0.3
+                )
+              }
+            >
+              W
+            </Button>
+            {activeSlide.backgroundTintColor && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 w-6 p-0"
+                title="Clear tint"
+                onClick={() => setBackgroundTint(activeSlideIndex, null, 0)}
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            )}
+          </div>
+          {activeSlide.backgroundTintColor && (
+            <>
+              <div className="flex gap-2 items-center">
+                <Label className="text-xs w-16 shrink-0">Opacity</Label>
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(activeSlide.backgroundTintOpacity * 100)}
+                  onChange={(e) =>
+                    setBackgroundTint(
+                      activeSlideIndex,
+                      activeSlide.backgroundTintColor,
+                      parseInt(e.target.value) / 100
+                    )
+                  }
+                  className="flex-1"
+                />
+                <span className="text-xs text-muted-foreground w-8 text-right">
+                  {Math.round(activeSlide.backgroundTintOpacity * 100)}%
+                </span>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={() => {
+                  applyTintToAll(activeSlide.backgroundTintColor, activeSlide.backgroundTintOpacity);
+                  toast.success("Tint applied to all slides");
+                }}
+              >
+                <CopyCheck className="w-3.5 h-3.5 mr-1" />
+                Apply Tint to All
+              </Button>
+            </>
+          )}
+        </div>
+      )}
 
       {/* BG Prompt */}
       <div className="space-y-1.5">

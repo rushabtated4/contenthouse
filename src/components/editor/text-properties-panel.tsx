@@ -163,13 +163,115 @@ export function TextPropertiesPanel() {
         <div className="flex gap-2 items-center">
           <input
             type="range"
-            min={0}
+            min={-10}
             max={30}
+            step={0.5}
             value={block.letterSpacing ?? 0}
-            onChange={(e) => update({ letterSpacing: parseInt(e.target.value) })}
+            onChange={(e) => update({ letterSpacing: parseFloat(e.target.value) })}
             className="flex-1 h-2 accent-primary"
           />
           <span className="text-xs text-muted-foreground w-8 text-right">{block.letterSpacing ?? 0}px</span>
+        </div>
+      </div>
+
+      {/* Word Spacing */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Word Spacing</Label>
+        <div className="flex gap-2 items-center">
+          <input
+            type="range"
+            min={-10}
+            max={30}
+            step={0.5}
+            value={block.wordSpacing ?? 0}
+            onChange={(e) => update({ wordSpacing: parseFloat(e.target.value) })}
+            className="flex-1 h-2 accent-primary"
+          />
+          <span className="text-xs text-muted-foreground w-8 text-right">{block.wordSpacing ?? 0}px</span>
+        </div>
+      </div>
+
+      {/* Presets */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Presets</Label>
+        <div className="flex gap-1.5">
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            title="48px, Medium, tight spacing"
+            onClick={() => update({ fontSize: 48, fontWeight: 500, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+          >
+            P1
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            title="64px, Bold, tight spacing"
+            onClick={() => update({ fontSize: 64, fontWeight: 700, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+          >
+            H1
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            title="56px, SemiBold, tight spacing"
+            onClick={() => update({ fontSize: 56, fontWeight: 600, letterSpacing: -1.5, lineHeight: 1.3, wordSpacing: -1 })}
+          >
+            H2
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            title="Auto-apply H1/H2/P1 to this slide"
+            onClick={() => {
+              for (const b of activeSlide.textBlocks) {
+                const len = b.text.length;
+                const preset = len <= 30
+                  ? { fontSize: 64, fontWeight: 700 as const }
+                  : len <= 45
+                  ? { fontSize: 56, fontWeight: 600 as const }
+                  : { fontSize: 48, fontWeight: 500 as const };
+                updateTextBlock(activeSlideIndex, b.id, {
+                  ...preset,
+                  letterSpacing: -1.5,
+                  lineHeight: 1.3,
+                  wordSpacing: -1,
+                });
+              }
+            }}
+          >
+            Auto
+          </Button>
+          <Button
+            variant="default"
+            size="sm"
+            className="flex-1 h-7 text-xs"
+            title="Auto-apply H1/H2/P1 to all slides"
+            onClick={() => {
+              slides.forEach((slide, si) => {
+                for (const b of slide.textBlocks) {
+                  const len = b.text.length;
+                  const preset = len <= 30
+                    ? { fontSize: 64, fontWeight: 700 as const }
+                    : len <= 45
+                    ? { fontSize: 56, fontWeight: 600 as const }
+                    : { fontSize: 48, fontWeight: 500 as const };
+                  updateTextBlock(si, b.id, {
+                    ...preset,
+                    letterSpacing: -1.5,
+                    lineHeight: 1.3,
+                    wordSpacing: -1,
+                  });
+                }
+              });
+            }}
+          >
+            All
+          </Button>
         </div>
       </div>
 
@@ -248,6 +350,30 @@ export function TextPropertiesPanel() {
             className="h-8 flex-1 font-mono text-xs"
             maxLength={7}
           />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 px-0 font-bold text-xs"
+            title="Black background"
+            onClick={() => update({
+              backgroundColor: "#000000",
+              ...(block.backgroundOpacity === 0 ? { backgroundOpacity: 0.5 } : {}),
+            })}
+          >
+            B
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 w-8 px-0 font-bold text-xs"
+            title="White background"
+            onClick={() => update({
+              backgroundColor: "#FFFFFF",
+              ...(block.backgroundOpacity === 0 ? { backgroundOpacity: 0.5 } : {}),
+            })}
+          >
+            W
+          </Button>
         </div>
         <div className="flex gap-2 items-center">
           <Label className="text-xs w-16 shrink-0">Opacity</Label>

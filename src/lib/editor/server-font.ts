@@ -42,7 +42,8 @@ export function measureText(
   text: string,
   fontSize: number,
   font: opentype.Font,
-  letterSpacing: number = 0
+  letterSpacing: number = 0,
+  wordSpacing: number = 0
 ): number {
   const glyphs = font.stringToGlyphs(text);
   let width = 0;
@@ -61,6 +62,11 @@ export function measureText(
     // Add letter-spacing for every character except the last
     if (letterSpacing > 0 && i < glyphs.length - 1) {
       width += letterSpacing;
+    }
+
+    // Add word-spacing for space characters
+    if (wordSpacing !== 0 && text[i] === " ") {
+      width += wordSpacing;
     }
   }
 

@@ -15,6 +15,7 @@ export function serverComputeSegmentLayout(
   fontWeight: number,
   lineHeight: number,
   letterSpacing: number,
+  wordSpacing: number,
   alignment: "left" | "center" | "right"
 ): LayoutLine[] {
   const lineHeightPx = fontSize * lineHeight;
@@ -29,7 +30,7 @@ export function serverComputeSegmentLayout(
 
   function measureWord(text: string, bold: boolean): number {
     const font = getFont(bold);
-    return measureText(text, fontSize, font, letterSpacing);
+    return measureText(text, fontSize, font, letterSpacing, wordSpacing);
   }
 
   function pushLine() {

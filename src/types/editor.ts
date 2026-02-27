@@ -29,6 +29,7 @@ export interface TextBlock {
   textTransform: "none" | "uppercase" | "lowercase";
   lineHeight: number; // multiplier (0.8-3.0), default 1.2
   letterSpacing: number; // px at 1080 canvas, default 0
+  wordSpacing: number; // px at 1080 canvas, default 0
   backgroundBorderColor: string; // hex, default "#000000"
   backgroundBorderWidth: number; // 0-8 px, default 0
   backgroundPadding: number; // px, default 20
@@ -60,6 +61,8 @@ export interface EditorSlide {
   backgroundColor: string | null; // hex color, null = use image
   backgroundLibraryId: string | null;
   bgPrompt: string;
+  backgroundTintColor: string | null;    // hex color for tint overlay, null = no tint
+  backgroundTintOpacity: number;          // 0-1, default 0
   textBlocks: TextBlock[];
   overlayImages: OverlayImage[];
   groups: ElementGroup[];
@@ -78,7 +81,17 @@ export interface BackgroundLibraryItem {
   source_video_id: string | null;
   width: number | null;
   height: number | null;
+  folder_id: string | null;
   created_at: string;
+}
+
+export interface BackgroundFolder {
+  id: string;
+  name: string;
+  created_at: string;
+  updated_at: string;
+  cover_url: string | null;
+  image_count: number;
 }
 
 export interface EditorStateJson {
@@ -93,6 +106,8 @@ export interface EditorExportRequest {
   slides: {
     backgroundUrl: string | null;
     backgroundColor: string | null;
+    backgroundTintColor?: string | null;
+    backgroundTintOpacity?: number;
     originalImageUrl: string;
     textBlocks: TextBlock[];
     overlayImages: OverlayImage[];

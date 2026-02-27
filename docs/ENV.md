@@ -12,6 +12,9 @@
 | `OPENAI_API_KEY` | `lib/openai/client.ts` | OpenAI API key for gpt-image-1 |
 | `RAPIDAPI_KEY` | `lib/tiktok/client.ts` | RapidAPI key for TikTok API access |
 | `RAPIDAPI_TIKTOK_HOST` | `lib/tiktok/client.ts` | RapidAPI host. Value: `tiktok-api23.p.rapidapi.com` |
+| `REPLICATE_API_TOKEN` | `lib/replicate/client.ts` | Replicate API token for Nano Banana Pro and Kling v2.6 |
+| `REPLICATE_WEBHOOK_SECRET` | `src/app/api/hooks/webhook/route.ts` | Secret for verifying Replicate HMAC-SHA256 webhook signatures |
+| `NEXT_PUBLIC_APP_URL` | `src/app/api/hooks/sessions/[id]/generate-images/route.ts`, `generate-videos/route.ts` | Public base URL passed to Replicate as webhook callback. E.g. `https://yourdomain.com` |
 
 ## Optional (override defaults)
 
@@ -39,6 +42,11 @@ OPENAI_API_KEY=sk-proj-...
 # RapidAPI
 RAPIDAPI_KEY=your-rapidapi-key
 RAPIDAPI_TIKTOK_HOST=tiktok-api23.p.rapidapi.com
+
+# Replicate (Hook Creator)
+REPLICATE_API_TOKEN=r8_...
+REPLICATE_WEBHOOK_SECRET=your-webhook-secret
+NEXT_PUBLIC_APP_URL=https://yourdomain.com
 
 # Optional overrides
 # DEFAULT_FIRST_SLIDE_PROMPT=...

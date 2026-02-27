@@ -273,6 +273,7 @@ interface TextBlock {
   textTransform: "none" | "uppercase" | "lowercase"; // default "none"
   lineHeight: number;        // multiplier 0.8-3.0 (default 1.2)
   letterSpacing: number;     // px at 1080 canvas width (default 0)
+  wordSpacing: number;       // px at 1080 canvas width (default 0)
 }
 ```
 
@@ -310,6 +311,8 @@ interface EditorSlide {
   backgroundUrl: string | null;
   backgroundLibraryId: string | null;
   bgPrompt: string;
+  backgroundTintColor: string | null;    // hex color for tint overlay, null = no tint
+  backgroundTintOpacity: number;          // 0-1, default 0
   textBlocks: TextBlock[];
   overlayImages: OverlayImage[];
   groups: ElementGroup[];
@@ -358,6 +361,9 @@ interface EditorStateJson {
 interface EditorExportRequest {
   slides: {
     backgroundUrl: string | null;
+    backgroundColor: string | null;
+    backgroundTintColor?: string | null;
+    backgroundTintOpacity?: number;
     originalImageUrl: string;
     textBlocks: TextBlock[];
     overlayImages: OverlayImage[];
@@ -694,5 +700,106 @@ interface UseGeneratedSetsOptions {
   total: number;
   loading: boolean;
   refetch: () => void;
+}
+```
+
+---
+
+## Hook Creator Types — `src/types/hooks.ts`
+
+### HookSession
+
+```typescript
+interface HookSession {
+  id: string;
+  title: string | null;
+  step: number;
+  source_type: "tiktok" | "upload";
+  source_url: string | null;
+  video_url: string | null;
+  snapshot_url: string | null;
+  snapshot_time: number;
+  image_prompt: string | null;
+  video_prompt: string | null;
+  video_duration: number | null;
+  video_aspect_ratio: string | null;
+  status: "draft" | "generating_images" | "selecting_images" | "generating_videos" | "completed";
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### HookGeneratedImage
+
+```typescript
+interface HookGeneratedImage {
+  id: string;
+  session_id: string;
+  replicate_id: string | null;
+  image_url: string | null;
+  prompt: string | null;
+  status: "pending" | "generating" | "completed" | "failed";
+  error_message: string | null;
+  selected: boolean;
+  created_at: string;
+}
+```
+
+### HookGeneratedVideo
+
+```typescript
+interface HookGeneratedVideo {
+  id: string;
+  session_id: string;
+  source_image_id: string | null;
+  replicate_id: string | null;
+  video_url: string | null;
+  thumbnail_url: string | null;
+  prompt: string | null;
+  duration: number | null;
+  aspect_ratio: string | null;
+  status: "pending" | "generating" | "completed" | "failed";
+  error_message: string | null;
+  created_at: string;
+}
+```
+
+### HookSessionWithMedia
+
+```typescript
+interface HookSessionWithMedia extends HookSession {
+  hook_generated_images: HookGeneratedImage[];
+  hook_generated_videos: HookGeneratedVideo[];
+}
+```
+
+### HookLibraryVideo
+
+```typescript
+interface HookLibraryVideo extends HookGeneratedVideo {
+  hook_sessions: { id: string; title: string | null };
+}
+```
+
+### useHookSession Return Type
+
+```typescript
+{
+  session: HookSessionWithMedia | null;
+  loading: boolean;
+  error: string | null;
+  refetch: () => Promise<void>;
+}
+```
+
+### useHookLibrary Return Type
+
+```typescript
+{
+  videos: HookLibraryVideo[];
+  total: number;
+  hasMore: boolean;
+  loading: boolean;
+  loadMore: () => void;
 }
 ```

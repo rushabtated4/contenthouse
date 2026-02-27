@@ -8,6 +8,7 @@ import {
   FolderCheck,
   CalendarDays,
   Users,
+  Clapperboard,
 } from "lucide-react";
 import {
   Sidebar,
@@ -25,6 +26,7 @@ const contentNav = [
   { label: "Dashboard", href: "/dashboard", icon: Gauge, description: "Overview of stats and recent activity" },
   { label: "Viral Carousels", href: "/videos", icon: GalleryHorizontalEnd, description: "Browse viral TikTok carousels" },
   { label: "Generated", href: "/generated", icon: FolderCheck, description: "View and download generated image sets" },
+  { label: "Hook Creator", href: "/hooks", icon: Clapperboard, description: "Create video hooks from snapshots" },
 ];
 
 const planNav = [

@@ -10,6 +10,7 @@ import { TextPropertiesPanel } from "./text-properties-panel";
 import { BackgroundControls } from "./background-controls";
 import { OverlayControls } from "./overlay-controls";
 import { ZOrderControls } from "./z-order-controls";
+import { ClearSlidesDialog } from "./clear-slides-dialog";
 import { ExtractTextModal } from "./extract-text-modal";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
@@ -104,6 +105,9 @@ export function CarouselEditor({ video, editorSetId }: CarouselEditorProps) {
         <div className="space-y-4">
           <EditorFilmstrip />
           <EditorCanvas />
+          <div className="flex justify-end">
+            <ClearSlidesDialog />
+          </div>
         </div>
         <div className="space-y-4">
           {selectedTextBlock && <TextPropertiesPanel />}

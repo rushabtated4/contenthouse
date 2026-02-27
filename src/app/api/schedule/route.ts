@@ -31,7 +31,42 @@ export async function GET(request: NextRequest) {
     const { data, error } = await query;
     if (error) throw error;
 
-    return NextResponse.json(data || []);
+    // Also fetch scheduled hook videos
+    let hookQuery = supabase
+      .from("hook_generated_videos")
+      .select(`
+        *,
+        hook_generated_images(*),
+        hook_sessions(id, source_type, video_url, snapshot_url),
+        project_accounts:channel_id(id, username, nickname, project_id, projects(id, name, color))
+      `)
+      .not("scheduled_at", "is", null)
+      .order("scheduled_at", { ascending: true });
+
+    if (channelId) {
+      hookQuery = hookQuery.eq("channel_id", channelId);
+    }
+    if (filter === "upcoming") {
+      hookQuery = hookQuery.is("posted_at", null);
+    } else if (filter === "posted") {
+      hookQuery = hookQuery.not("posted_at", "is", null);
+    }
+
+    const { data: hookData, error: hookError } = await hookQuery;
+    if (hookError) throw hookError;
+
+    // Tag hook videos with type for calendar
+    const taggedHooks = (hookData || []).map((h) => ({
+      ...h,
+      _type: "hook" as const,
+    }));
+
+    const taggedSets = (data || []).map((s) => ({
+      ...s,
+      _type: "carousel" as const,
+    }));
+
+    return NextResponse.json([...taggedSets, ...taggedHooks]);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });

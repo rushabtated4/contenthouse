@@ -176,6 +176,8 @@ export function EditorCanvas() {
             <CanvasBackground
               url={activeSlide.backgroundUrl || activeSlide.originalImageUrl}
               backgroundColor={activeSlide.backgroundColor ?? null}
+              backgroundTintColor={activeSlide.backgroundTintColor ?? null}
+              backgroundTintOpacity={activeSlide.backgroundTintOpacity ?? 0}
               canvasHeight={canvasHeight}
             />
             {sortedElements.map((el) => {

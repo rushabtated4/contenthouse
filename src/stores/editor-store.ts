@@ -78,13 +78,17 @@ interface EditorState {
   setBackgroundFromLibrary: (slideIndex: number, url: string, libraryId: string) => void;
   setBackgroundFromUpload: (slideIndex: number, url: string) => void;
   setBackgroundColor: (slideIndex: number, color: string | null) => void;
+  setBackgroundTint: (slideIndex: number, color: string | null, opacity: number) => void;
+  applyTintToAll: (color: string | null, opacity: number) => void;
   applyBackgroundToAll: (url: string, libraryId: string | null) => void;
+  autoApplyBackgrounds: (backgrounds: { url: string; libraryId: string }[]) => void;
   updateBgPrompt: (slideIndex: number, prompt: string) => void;
 
   // Slide management
   reorderSlides: (fromIndex: number, toIndex: number) => void;
   removeSlide: (index: number) => void;
   addBlankSlide: () => void;
+  clearSlides: (options: { text: boolean; background: boolean; overlay: boolean }) => void;
 
   // Async actions (call API routes, update state)
   extractText: () => Promise<void>;
@@ -103,8 +107,14 @@ interface EditorState {
   setExtractedText: (slides: ExtractedSlide[]) => void;
   setOutputFormat: (format: "png" | "jpeg" | "webp") => void;
 
+  // Whether generated_images rows exist for this set
+  hasGeneratedImages: boolean;
+
   // Update generation (overwrite generated_images with editor changes)
   updateGeneration: () => Promise<void>;
+
+  // Create generation (render all slides into new generated_images rows)
+  createGeneration: () => Promise<void>;
 
   // Save/load
   saveEditorState: () => Promise<void>;
@@ -123,6 +133,23 @@ function makeBlockId() {
   return crypto.randomUUID();
 }
 
+/** For slides after the first, swap paraphrased text to be the primary text shown/applied */
+function swapParaphrasedText(slides: ExtractedSlide[]): ExtractedSlide[] {
+  return slides.map((es) => ({
+    ...es,
+    blocks: es.blocks.map((b) => {
+      if (es.slideIndex > 0 && b.paraphrasedText) {
+        return {
+          ...b,
+          text: b.paraphrasedText,
+          paraphrasedText: b.text,
+        };
+      }
+      return b;
+    }),
+  }));
+}
+
 function makeEmptySlide(): EditorSlide {
   return {
     id: makeSlideId(),
@@ -131,6 +158,8 @@ function makeEmptySlide(): EditorSlide {
     backgroundColor: null,
     backgroundLibraryId: null,
     bgPrompt: DEFAULT_BG_PROMPT,
+    backgroundTintColor: null,
+    backgroundTintOpacity: 0,
     textBlocks: [],
     overlayImages: [],
     groups: [],
@@ -146,6 +175,8 @@ function migrateEditorState(state: EditorStateJson): EditorStateJson {
     slides: state.slides.map((slide) => ({
       ...slide,
       backgroundColor: (slide as EditorSlide).backgroundColor ?? null,
+      backgroundTintColor: (slide as EditorSlide).backgroundTintColor ?? null,
+      backgroundTintOpacity: (slide as EditorSlide).backgroundTintOpacity ?? 0,
       overlayImages: (slide as EditorSlide).overlayImages ?? [],
       groups: (slide as EditorSlide).groups ?? [],
       textBlocks: slide.textBlocks.map((tb, i) => ({
@@ -187,6 +218,7 @@ const initialState = {
   savedSetId: null as string | null,
   saveStatus: "idle" as LoadingStatus,
   isDirty: false,
+  hasGeneratedImages: false,
   dirtySlideIndexes: new Set<number>(),
   updateGenerationStatus: "idle" as LoadingStatus,
   aspectRatio: "2:3" as AspectRatio,
@@ -594,6 +626,34 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     });
   },
 
+  setBackgroundTint: (slideIndex, color, opacity) => {
+    set((state) => {
+      const hist = withHistory(state, slideIndex);
+      const slides = [...state.slides];
+      slides[slideIndex] = {
+        ...slides[slideIndex],
+        backgroundTintColor: color,
+        backgroundTintOpacity: opacity,
+      };
+      return { slides, isDirty: true, ...hist };
+    });
+  },
+
+  applyTintToAll: (color, opacity) => {
+    set((state) => {
+      const hist = withHistory(state);
+      return {
+        isDirty: true,
+        slides: state.slides.map((s) => ({
+          ...s,
+          backgroundTintColor: color,
+          backgroundTintOpacity: opacity,
+        })),
+        ...hist,
+      };
+    });
+  },
+
   applyBackgroundToAll: (url, libraryId) => {
     set((state) => ({
       isDirty: true,
@@ -604,6 +664,29 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         backgroundLibraryId: libraryId,
       })),
     }));
+  },
+
+  autoApplyBackgrounds: (backgrounds) => {
+    if (backgrounds.length === 0) return;
+    set((state) => {
+      const hist = withHistory(state, 1);
+      const newSlides = state.slides.map((slide, i) => {
+        if (i === 0) return slide; // skip first slide
+        const pick = backgrounds[Math.floor(Math.random() * backgrounds.length)];
+        return {
+          ...slide,
+          backgroundUrl: pick.url,
+          backgroundColor: null,
+          backgroundLibraryId: pick.libraryId,
+        };
+      });
+      // Mark all slides except first as dirty
+      const dirtySlideIndexes = new Set(hist.dirtySlideIndexes);
+      for (let i = 1; i < newSlides.length; i++) {
+        dirtySlideIndexes.add(i);
+      }
+      return { slides: newSlides, isDirty: true, ...hist, dirtySlideIndexes };
+    });
   },
 
   updateBgPrompt: (slideIndex, prompt) => {
@@ -640,6 +723,24 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }));
   },
 
+  clearSlides: ({ text, background, overlay }) => {
+    set((state) => {
+      const slides = state.slides.map((slide) => ({
+        ...slide,
+        ...(text ? { textBlocks: [] } : {}),
+        ...(background ? {
+          backgroundUrl: null,
+          backgroundColor: null,
+          backgroundLibraryId: null,
+          backgroundTintColor: null,
+          backgroundTintOpacity: 0,
+        } : {}),
+        ...(overlay ? { overlayImages: [] } : {}),
+      }));
+      return { slides, isDirty: true, selectedIds: [] };
+    });
+  },
+
   setExtractedText: (extractedSlides) => {
     set((state) => {
       const slides = [...state.slides];
@@ -647,7 +748,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (es.slideIndex < slides.length) {
           slides[es.slideIndex] = {
             ...slides[es.slideIndex],
-            textBlocks: es.blocks.map((b, i) => ({ ...b, id: b.id || makeBlockId(), zIndex: b.zIndex ?? i })),
+            textBlocks: es.blocks.map((b, i) => ({
+              ...b,
+              id: b.id || makeBlockId(),
+              zIndex: b.zIndex ?? i,
+            })),
           };
         }
       }
@@ -698,8 +803,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (!res.ok) throw new Error("Text extraction failed");
       const data = await res.json();
+      // For slides after the first, swap paraphrased text to be the primary text
+      const swapped = swapParaphrasedText(data.slides);
       set({
-        extractedResults: data.slides,
+        extractedResults: swapped,
         extractTextModalOpen: true,
         extractionStatus: "done",
       });
@@ -720,8 +827,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (!res.ok) throw new Error("Text extraction failed");
       const data = await res.json();
+      const swapped = swapParaphrasedText(data.slides);
       set({
-        extractedResults: data.slides,
+        extractedResults: swapped,
         extractTextModalOpen: true,
         extractionStatus: "done",
       });
@@ -813,6 +921,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           slides: slides.map((s) => ({
             backgroundUrl: s.backgroundUrl,
             backgroundColor: s.backgroundColor ?? null,
+            backgroundTintColor: s.backgroundTintColor ?? null,
+            backgroundTintOpacity: s.backgroundTintOpacity ?? 0,
             originalImageUrl: s.originalImageUrl,
             textBlocks: s.textBlocks,
             overlayImages: s.overlayImages,
@@ -841,6 +951,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         slide: {
           backgroundUrl: slides[idx].backgroundUrl,
           backgroundColor: slides[idx].backgroundColor ?? null,
+          backgroundTintColor: slides[idx].backgroundTintColor ?? null,
+          backgroundTintOpacity: slides[idx].backgroundTintOpacity ?? 0,
           originalImageUrl: slides[idx].originalImageUrl,
           textBlocks: slides[idx].textBlocks,
           overlayImages: slides[idx].overlayImages,
@@ -853,6 +965,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
       if (!res.ok) throw new Error("Update generation failed");
       set({ updateGenerationStatus: "done", dirtySlideIndexes: new Set<number>() });
+    } catch {
+      set({ updateGenerationStatus: "error" });
+    }
+  },
+
+  createGeneration: async () => {
+    const { savedSetId, slides, outputFormat, aspectRatio } = get();
+    if (!savedSetId) return;
+    set({ updateGenerationStatus: "loading" });
+    try {
+      const allSlides = slides.map((slide, idx) => ({
+        editorIndex: idx,
+        slide: {
+          backgroundUrl: slide.backgroundUrl,
+          backgroundColor: slide.backgroundColor ?? null,
+          backgroundTintColor: slide.backgroundTintColor ?? null,
+          backgroundTintOpacity: slide.backgroundTintOpacity ?? 0,
+          originalImageUrl: slide.originalImageUrl,
+          textBlocks: slide.textBlocks,
+          overlayImages: slide.overlayImages,
+        },
+      }));
+      const res = await fetch("/api/editor/create-generation", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ setId: savedSetId, slides: allSlides, outputFormat, aspectRatio }),
+      });
+      if (!res.ok) throw new Error("Create generation failed");
+      set({
+        updateGenerationStatus: "done",
+        dirtySlideIndexes: new Set<number>(),
+        hasGeneratedImages: true,
+      });
     } catch {
       set({ updateGenerationStatus: "error" });
     }
@@ -922,6 +1067,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       originalSlides: originalImages,
       slides,
       savedSetId: setId,
+      hasGeneratedImages: true,
       dirtySlideIndexes: new Set<number>(),
       updateGenerationStatus: "idle",
     });
