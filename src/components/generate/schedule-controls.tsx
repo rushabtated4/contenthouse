@@ -21,6 +21,7 @@ interface ScheduleControlsProps {
   initialScheduledAt?: string | null;
   initialPostedAt?: string | null;
   onDownload?: () => void;
+  onUpdated?: () => void;
 }
 
 const SLOT_HOURS: Record<number, number[]> = { 1: [21], 2: [9, 21], 3: [9, 15, 21] };
@@ -40,6 +41,7 @@ export function ScheduleControls({
   initialScheduledAt,
   initialPostedAt,
   onDownload,
+  onUpdated,
 }: ScheduleControlsProps) {
   const [accounts, setAccounts] = useState<ProjectAccountWithProject[]>([]);
   const [channelId, setChannelId] = useState(initialChannelId || "");
@@ -47,6 +49,11 @@ export function ScheduleControls({
   const [postedAt, setPostedAt] = useState<string | null>(initialPostedAt || null);
   const [autoAssigning, setAutoAssigning] = useState(false);
   const [markingPosted, setMarkingPosted] = useState(false);
+
+  // Sync local state when props change (e.g. SWR refetch from another tab)
+  useEffect(() => { setChannelId(initialChannelId || ""); }, [initialChannelId]);
+  useEffect(() => { setScheduledAt(initialScheduledAt || null); }, [initialScheduledAt]);
+  useEffect(() => { setPostedAt(initialPostedAt || null); }, [initialPostedAt]);
 
   useEffect(() => {
     fetch("/api/project-accounts")
@@ -75,6 +82,7 @@ export function ScheduleControls({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ setId, channelId: newId || null, scheduledAt: null, notes: null }),
       });
+      onUpdated?.();
     } catch {
       toast.error("Failed to save channel");
     }
@@ -128,6 +136,7 @@ export function ScheduleControls({
         body: JSON.stringify({ setId, channelId, scheduledAt: picked.toISOString(), notes: null }),
       });
       setScheduledAt(picked.toISOString());
+      onUpdated?.();
       toast.success("Auto-assigned to " + formatSlot(picked));
     } catch {
       toast.error("Failed to auto-assign");
@@ -144,6 +153,7 @@ export function ScheduleControls({
         body: JSON.stringify({ setId, channelId, scheduledAt: null, notes: null }),
       });
       setScheduledAt(null);
+      onUpdated?.();
     } catch {
       toast.error("Failed to unassign slot");
     }
@@ -161,6 +171,7 @@ export function ScheduleControls({
       if (!res.ok) throw new Error();
       const data = await res.json();
       setPostedAt(data.posted_at);
+      onUpdated?.();
       toast.success(newPosted ? "Marked as posted" : "Unmarked as posted");
     } catch {
       toast.error("Failed to update posted status");

@@ -6,8 +6,16 @@ import { Input } from "@/components/ui/input";
 import { Loader2, Link as LinkIcon } from "lucide-react";
 import { toast } from "sonner";
 
+interface TiktokStats {
+  playCount: number;
+  diggCount: number;
+  commentCount: number;
+  shareCount: number;
+  collectCount: number;
+}
+
 interface TiktokUrlInputProps {
-  onVideoReady: (videoUrl: string, tiktokUrl: string, tiktokVideoId: string | null) => void;
+  onVideoReady: (videoUrl: string, tiktokUrl: string, tiktokVideoId: string | null, stats: TiktokStats | null) => void;
 }
 
 export function TiktokUrlInput({ onVideoReady }: TiktokUrlInputProps) {
@@ -30,7 +38,7 @@ export function TiktokUrlInput({ onVideoReady }: TiktokUrlInputProps) {
       }
 
       const data = await res.json();
-      onVideoReady(data.videoUrl, url.trim(), data.tiktokVideoId);
+      onVideoReady(data.videoUrl, url.trim(), data.tiktokVideoId, data.stats || null);
       toast.success("Video downloaded successfully");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to fetch video");

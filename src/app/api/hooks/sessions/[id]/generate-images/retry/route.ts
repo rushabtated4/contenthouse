@@ -51,6 +51,7 @@ export async function POST(
       prompt: image.prompt,
       imageUrl: session.snapshot_url,
       numImages: 1,
+      model: image.model || "google/nano-banana-pro",
     });
 
     if (result.imageUrls[0]) {

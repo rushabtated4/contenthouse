@@ -1,6 +1,6 @@
 "use client";
 
-import { downloadSetAsZip } from "@/lib/client/download-zip";
+import { downloadSetAsZip, formatDateForFilename, sanitizeFilename } from "@/lib/client/download-zip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -174,7 +174,9 @@ function SetContent({
   onRefetch?: () => void;
 }) {
   const handleDownload = () => {
-    downloadSetAsZip(set.id, `carousel_${set.id.slice(0, 8)}.zip`);
+    const name = set.title ? sanitizeFilename(set.title) : "carousel";
+    const datePart = set.scheduled_at ? formatDateForFilename(set.scheduled_at) : set.id.slice(0, 8);
+    downloadSetAsZip(set.id, `${name}_${datePart}.zip`);
   };
 
   const sortedImages = [...set.generated_images].sort(
@@ -196,6 +198,7 @@ function SetContent({
           initialScheduledAt={set.scheduled_at}
           initialPostedAt={set.posted_at}
           onDownload={set.generated_images.some((i) => i.status === "completed") ? handleDownload : undefined}
+          onUpdated={onRefetch}
         />
         {onEditInEditor && set.generated_images.some((i) => i.status === "completed") && (
           <Button variant="outline" size="sm" onClick={() => onEditInEditor(set.id)}>

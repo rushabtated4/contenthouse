@@ -1,7 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
-import { Download, Check, Calendar, Play } from "lucide-react";
+import { Download, Check, Calendar, Play, Pencil } from "lucide-react";
 import type { HookGeneratedVideo } from "@/types/hooks";
 
 interface VideoResultCardProps {
@@ -10,9 +10,10 @@ interface VideoResultCardProps {
   onMarkUsed: (id: string, used: boolean) => void;
   onSchedule: (id: string) => void;
   onPlay: (videoUrl: string) => void;
+  onEdit?: (id: string, videoUrl: string) => void;
 }
 
-export function VideoResultCard({ video, onDownload, onMarkUsed, onSchedule, onPlay }: VideoResultCardProps) {
+export function VideoResultCard({ video, onDownload, onMarkUsed, onSchedule, onPlay, onEdit }: VideoResultCardProps) {
   if (video.status !== "completed" || !video.video_url) return null;
 
   return (
@@ -42,6 +43,12 @@ export function VideoResultCard({ video, onDownload, onMarkUsed, onSchedule, onP
             <Calendar className="w-3 h-3 mr-1" />
             Schedule
           </Button>
+          {onEdit && (
+            <Button size="sm" variant="outline" onClick={() => onEdit(video.id, video.video_url!)}>
+              <Pencil className="w-3 h-3 mr-1" />
+              Edit
+            </Button>
+          )}
         </div>
       </div>
     </div>

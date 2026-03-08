@@ -221,7 +221,7 @@ export default function GenerateDetailPage({
         </TabsContent>
 
         <TabsContent value="editor" className="mt-4">
-          <CarouselEditor video={video} editorSetId={editorSetId} />
+          <CarouselEditor video={video} editorSetId={editorSetId} onRefetch={refetch} />
         </TabsContent>
       </Tabs>
     </div>

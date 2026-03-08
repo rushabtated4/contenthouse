@@ -5,17 +5,29 @@ interface ImageEntry {
   filename: string;
 }
 
+function isIOS(): boolean {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+}
+
 /**
  * Downloads all images for a generation set directly from CDN in the browser,
  * creates a ZIP with fflate, and triggers a download.
  *
  * Much faster than the server-side route because images are fetched in parallel
  * directly from Supabase CDN without a server round-trip.
+ *
+ * On iOS, falls back to server-side ZIP since Safari doesn't support Blob URL downloads.
  */
 export async function downloadSetAsZip(
   setId: string,
   filename: string
 ) {
+  // iOS Safari doesn't support Blob URL downloads — use server-side ZIP endpoint
+  if (isIOS()) {
+    window.open(`/api/images/${setId}/download?filename=${encodeURIComponent(filename)}`, "_blank");
+    return;
+  }
   // Get image URLs from the API (lightweight — just a DB query)
   const res = await fetch(`/api/images/${setId}/download?urls=1`);
   if (!res.ok) throw new Error("Failed to get image URLs");

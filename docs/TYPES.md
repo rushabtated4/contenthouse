@@ -517,6 +517,12 @@ interface ExtractTextResponse {
   slides: ExtractedSlide[];
 }
 
+interface GenerateImagesRequest {
+  prompt: string;
+  numImages?: number;
+  model?: string;  // default "google/nano-banana-pro"
+}
+
 interface GenerateBackgroundRequest {
   videoId: string;
   slideIndex: number;
@@ -714,7 +720,7 @@ interface HookSession {
   id: string;
   title: string | null;
   step: number;
-  source_type: "tiktok" | "upload";
+  source_type: "tiktok" | "upload" | "clip";
   source_url: string | null;
   video_url: string | null;
   snapshot_url: string | null;
@@ -723,10 +729,30 @@ interface HookSession {
   video_prompt: string | null;
   video_duration: number | null;
   video_aspect_ratio: string | null;
+  trimmed_video_url: string | null;
+  trimmed_thumbnail_url: string | null;
+  trimmed_duration: number | null;
+  source_session_id: string | null;
+  tiktok_play_count: number | null;
+  tiktok_digg_count: number | null;
+  tiktok_comment_count: number | null;
+  tiktok_share_count: number | null;
+  tiktok_collect_count: number | null;
   status: "draft" | "generating_images" | "selecting_images" | "generating_videos" | "completed";
   created_at: string;
   updated_at: string;
 }
+```
+
+### HOOK_IMAGE_MODELS & HookImageModel
+
+```typescript
+const HOOK_IMAGE_MODELS = {
+  "google/nano-banana-pro": "Nano Banana Pro",
+  // additional models as added
+} as const;
+
+type HookImageModel = keyof typeof HOOK_IMAGE_MODELS;
 ```
 
 ### HookGeneratedImage
@@ -738,6 +764,7 @@ interface HookGeneratedImage {
   replicate_id: string | null;
   image_url: string | null;
   prompt: string | null;
+  model: string;
   status: "pending" | "generating" | "completed" | "failed";
   error_message: string | null;
   selected: boolean;
@@ -791,6 +818,107 @@ interface HookLibraryVideo extends HookGeneratedVideo {
   refetch: () => Promise<void>;
 }
 ```
+
+---
+
+## Hook Editor Types — `src/types/hook-editor.ts`
+
+### VideoTextOverlay
+
+Text overlay for hook video compositions. Extends TextBlock properties (minus `paraphrasedText` and `segments`) with timing controls.
+
+```typescript
+interface VideoTextOverlay {
+  id: string;
+  text: string;
+  x: number;           // percentage 0-100
+  y: number;           // percentage 0-100
+  width: number;       // percentage 0-100
+  height: number;      // percentage 0-100
+  fontSize: number;    // px at 1080 canvas width
+  fontWeight: 400 | 500 | 600 | 700 | 800;
+  zIndex: number;
+  color: string;       // hex
+  alignment: "left" | "center" | "right";
+  hasShadow: boolean;
+  shadowColor: string;
+  shadowBlur: number;
+  shadowOffsetX: number;
+  shadowOffsetY: number;
+  backgroundColor: string;
+  backgroundOpacity: number;
+  backgroundPadding: number;
+  backgroundCornerRadius: number;
+  backgroundBorderColor: string;
+  backgroundBorderWidth: number;
+  hasStroke: boolean;
+  strokeColor: string;
+  strokeWidth: number;
+  textTransform: "none" | "uppercase" | "lowercase";
+  lineHeight: number;
+  letterSpacing: number;
+  wordSpacing: number;
+  startTime: number;   // seconds — when overlay appears
+  endTime: number;     // seconds — when overlay disappears
+}
+```
+
+### DemoVideo
+
+```typescript
+interface DemoVideo {
+  id: string;
+  video_url: string;
+  thumbnail_url: string | null;
+  title: string | null;
+  duration: number | null;
+  file_size: number | null;
+  created_at: string;
+}
+```
+
+### HookComposition
+
+```typescript
+interface HookComposition {
+  id: string;
+  source_video_id: string;
+  demo_video_id: string | null;
+  rendered_video_url: string | null;
+  thumbnail_url: string | null;
+  text_overlays: VideoTextOverlay[];
+  duration: number | null;
+  status: "draft" | "rendering" | "completed" | "failed";
+  error_message: string | null;
+  review_status: "unverified" | "ready_to_post";
+  channel_id: string | null;
+  scheduled_at: string | null;
+  posted_at: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### HookCompositionWithRelations
+
+```typescript
+interface HookCompositionWithRelations extends HookComposition {
+  hook_generated_videos: {
+    id: string;
+    video_url: string | null;
+    thumbnail_url: string | null;
+  };
+  demo_videos: DemoVideo | null;
+  project_accounts: {
+    id: string;
+    username: string;
+    nickname: string | null;
+  } | null;
+}
+```
+
+---
 
 ### useHookLibrary Return Type
 

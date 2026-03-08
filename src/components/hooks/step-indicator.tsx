@@ -7,10 +7,10 @@ const STEPS = [
   { label: "Video Input", short: "Input" },
   { label: "Trim Video", short: "Trim" },
   { label: "Capture Snapshot", short: "Capture" },
-  { label: "Generate Images", short: "Images" },
-  { label: "Select Images", short: "Select" },
+  { label: "Images", short: "Images" },
   { label: "Generate Videos", short: "Videos" },
   { label: "Results", short: "Results" },
+  { label: "Edit & Compose", short: "Edit" },
 ];
 
 interface StepIndicatorProps {

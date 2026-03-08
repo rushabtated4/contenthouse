@@ -5,6 +5,7 @@ interface NanaBananaOptions {
   imageUrl: string;
   numImages?: number;
   aspectRatio?: string;
+  model?: string;
 }
 
 interface NanaBananaResult {
@@ -15,11 +16,11 @@ export async function generateWithNanoBanana(
   options: NanaBananaOptions
 ): Promise<NanaBananaResult> {
   const replicate = getReplicateClient();
-  const { prompt, imageUrl, numImages = 1, aspectRatio = "3:4" } = options;
+  const { prompt, imageUrl, numImages = 1, aspectRatio = "3:4", model = "google/nano-banana-pro" } = options;
 
   // Nano Banana Pro returns 1 image per call, so run multiple in parallel
   const promises = Array.from({ length: numImages }, () =>
-    replicate.run("google/nano-banana-pro", {
+    replicate.run(model as `${string}/${string}`, {
       input: {
         prompt,
         image_input: [imageUrl],

@@ -46,6 +46,9 @@ RootLayout (src/app/layout.tsx)
 │   │       └── SetContent (status badge, Download ZIP, ScheduleControls)
 │   └── [Editor Mode tab]
 │       └── CarouselEditor (editor/carousel-editor.tsx)
+│           ├── EditorGenerationControls (editor/editor-generation-controls.tsx) [when generation attached]
+│           │   ├── ReviewStatusBadge (shared/review-status-badge.tsx)
+│           │   └── ScheduleControls (generate/schedule-controls.tsx) [channel, auto-assign, download, posted]
 │           ├── Reference slides strip (original thumbnails + per-slide actions)
 │           │   └── ReferenceSlide[] (extract text, use original as background, generate background w/ editable prompt)
 │           ├── EditorFilmstrip (editor/editor-filmstrip.tsx)
@@ -100,21 +103,22 @@ RootLayout (src/app/layout.tsx)
 │   └── NewHookButton → /hooks/new
 │
 ├── /hooks/new → HookWizardPage (hooks/new/page.tsx)
-│   └── HookWizard (hooks/hook-wizard.tsx)  [7-step wizard]
-│       ├── Step 1: HookSourceStep (hooks/steps/hook-source-step.tsx)
+│   └── HookWizard (hooks/hook-wizard.tsx)  [6-step wizard, steps 0-5]
+│       ├── Step 0: VideoInputStep (hooks/video-input-step.tsx)
 │       │   ├── HookTikTokInput (hooks/hook-tiktok-input.tsx)
-│       │   └── HookUploadInput (hooks/hook-upload-input.tsx)
-│       ├── Step 2: HookSnapshotStep (hooks/steps/hook-snapshot-step.tsx)
+│       │   ├── HookUploadInput (hooks/hook-upload-input.tsx)
+│       │   └── TrimmedClipLibrary (hooks/trimmed-clip-library.tsx)
+│       ├── Step 1: TrimVideoStep
+│       ├── Step 2: CaptureSnapshotStep
 │       │   └── HookVideoScrubber (hooks/hook-video-scrubber.tsx)
-│       ├── Step 3: HookImagePromptStep (hooks/steps/hook-image-prompt-step.tsx)
-│       ├── Step 4: HookGeneratingImagesStep (hooks/steps/hook-generating-images-step.tsx)
-│       │   └── HookImageGrid (hooks/hook-image-grid.tsx)
-│       ├── Step 5: HookSelectImagesStep (hooks/steps/hook-select-images-step.tsx)
-│       │   └── HookImageGrid (selectable mode)
-│       ├── Step 6: HookVideoPromptStep (hooks/steps/hook-video-prompt-step.tsx)
-│       ├── Step 7: HookGeneratingVideosStep (hooks/steps/hook-generating-videos-step.tsx)
+│       ├── Step 3: ImageStep (hooks/image-step.tsx)  [merged generate + select]
+│       │   ├── "Generate" tab: ImageGenConfig + ImageGenResults + inline selection
+│       │   │   └── HookImageGrid (hooks/hook-image-grid.tsx)
+│       │   └── "From Library" tab: fetches image library, selectable cards
+│       ├── Step 4: GenerateVideosStep
 │       │   └── HookVideoGrid (hooks/hook-video-grid.tsx)
-│       └── HookWizardNav (hooks/hook-wizard-nav.tsx)  [Back/Next/Finish buttons]
+│       ├── Step 5: ResultsStep
+│       └── StepIndicator (hooks/step-indicator.tsx)  [6 steps]
 │
 ├── /hooks/[id] → HookSessionPage (hooks/[id]/page.tsx)
 │   └── HookSessionDetail (hooks/hook-session-detail.tsx)
@@ -253,7 +257,12 @@ Channel dropdown (grouped by project), datetime picker, save button. "Mark as Po
 **File:** `src/components/editor/carousel-editor.tsx`
 **Props:** `{ video: Video & { generation_sets?: GenerationSetWithImages[] }, editorSetId?: string | null }`
 **Store:** `useEditorStore` (Zustand)
-Top-level editor component. When `editorSetId` is provided, initializes from that generation set's completed images (via `initFromGeneratedSet`); otherwise initializes with blank working slides. Stores originals as read-only references. Shows a reference slides strip (non-editable thumbnails) above the working filmstrip. Right sidebar shows: TextPropertiesPanel (when single text block selected), ZOrderControls (when any element selected), OverlayControls, BackgroundControls.
+Top-level editor component. When `editorSetId` is provided, initializes from that generation set's completed images (via `initFromGeneratedSet`); otherwise initializes with blank working slides. Stores originals as read-only references. When a generation set is attached and has completed images, renders `EditorGenerationControls` between the toolbar and reference slides strip. Right sidebar shows: TextPropertiesPanel (when single text block selected), ZOrderControls (when any element selected), OverlayControls, BackgroundControls.
+
+### EditorGenerationControls
+**File:** `src/components/editor/editor-generation-controls.tsx`
+**Props:** `{ set: GenerationSetWithImages, onUpdated?: () => void }`
+Compact bar showing review status toggle (`ReviewStatusBadge`) and schedule/channel/download/posted controls (`ScheduleControls`). Only rendered when the editor has an attached generation set with completed images. Reuses existing shared components — no custom logic.
 
 ### EditorFilmstrip
 **File:** `src/components/editor/editor-filmstrip.tsx`
@@ -490,16 +499,21 @@ Dialog to assign/update channel for a generation set. Channel select dropdown, s
 
 ## Hook Creator Components
 
-### HookWizard
-**File:** `src/components/hooks/hook-wizard.tsx`
+### HookCreatorWizard
+**File:** `src/components/hooks/hook-creator-wizard.tsx`
 **Props:** `{ sessionId?: string }`
 **State:** `session`, `step`, `loading`
-Top-level 7-step wizard orchestrator. Creates or loads a `hook_session` on mount. Renders the active step component and `HookWizardNav`. Persists step progress to the session via `PATCH /api/hooks/sessions/[id]`.
+Top-level 6-step wizard orchestrator (steps 0-5). Creates or loads a `hook_session` on mount. Renders the active step component and `StepIndicator`. Persists step progress to the session via `PATCH /api/hooks/sessions/[id]`.
 
 ### HookWizardNav
 **File:** `src/components/hooks/hook-wizard-nav.tsx`
 **Props:** `{ step: number, totalSteps: number, onBack: () => void, onNext: () => void, nextLabel?: string, nextDisabled?: boolean, loading?: boolean }`
 Back/Next/Finish navigation bar shown at the bottom of each wizard step.
+
+### TrimmedClipLibrary
+**File:** `src/components/hooks/trimmed-clip-library.tsx`
+**Props:** `{ onSelectClip: (session: HookSession) => void }`
+Grid of previously trimmed clips. Fetches `GET /api/hooks/sessions?hasTrimmedClip=true`. Each card shows thumbnail, duration badge, source type icon, and creation date. Clicking a card calls `onSelectClip`. Used in VideoInputStep's "From Library" tab.
 
 ### HookSourceStep
 **File:** `src/components/hooks/steps/hook-source-step.tsx`
@@ -526,20 +540,10 @@ Step 2 — Preview the input video and scrub to select a snapshot frame. Renders
 **Props:** `{ videoUrl: string, onSnapshot: (time: number, snapshotUrl: string) => void }`
 HTML5 `<video>` element with a range scrubber. "Use this frame" button calls `POST /api/hooks/sessions/[id]/snapshot` with the current `currentTime`.
 
-### HookImagePromptStep
-**File:** `src/components/hooks/steps/hook-image-prompt-step.tsx`
+### ImageStep
+**File:** `src/components/hooks/image-step.tsx`
 **Props:** `{ session: HookSession, onUpdate: (session: HookSession) => void }`
-Step 3 — Write the image generation prompt and set `numImages`. Uses `PromptTextarea`. Calls `POST /api/hooks/sessions/[id]/generate-images` on Next.
-
-### HookGeneratingImagesStep
-**File:** `src/components/hooks/steps/hook-generating-images-step.tsx`
-**Props:** `{ session: HookSession, onUpdate: (session: HookSession) => void }`
-Step 4 — Polls session until all images are `completed` or `failed`. Renders `HookImageGrid` in status-only (non-selectable) mode.
-
-### HookSelectImagesStep
-**File:** `src/components/hooks/steps/hook-select-images-step.tsx`
-**Props:** `{ session: HookSession, onUpdate: (session: HookSession) => void }`
-Step 5 — Select generated images to use for video generation. Renders `HookImageGrid` in selectable mode. Calls `PATCH /api/hooks/sessions/[id]/select-images` on Next.
+Step 3 — Combined image generation and selection step with two tabs. "Generate" tab: configure prompt and numImages, generate via Replicate Nano Banana Pro, view results in `HookImageGrid`, and select images inline. "From Library" tab: fetches completed images from `GET /api/hooks/images/library`, displays selectable cards, imports selected images via `PATCH /api/hooks/sessions/[id]/select-images` with `sourceImageIds`. Advances to step 4 on confirm.
 
 ### HookImageGrid
 **File:** `src/components/hooks/hook-image-grid.tsx`
@@ -549,12 +553,12 @@ Grid of hook generated images. Selectable mode adds a checkbox overlay. Shows st
 ### HookVideoPromptStep
 **File:** `src/components/hooks/steps/hook-video-prompt-step.tsx`
 **Props:** `{ session: HookSession, onUpdate: (session: HookSession) => void }`
-Step 6 — Write the video generation prompt, set duration and aspect ratio. Calls `POST /api/hooks/sessions/[id]/generate-videos` on Next.
+Step 4 — Write the video generation prompt, set duration and aspect ratio. Calls `POST /api/hooks/sessions/[id]/generate-videos` on Next.
 
 ### HookGeneratingVideosStep
 **File:** `src/components/hooks/steps/hook-generating-videos-step.tsx`
 **Props:** `{ session: HookSession, onUpdate: (session: HookSession) => void }`
-Step 7 — Polls session until all videos are `completed` or `failed`. Renders `HookVideoGrid`.
+Step 5 — Polls session until all videos are `completed` or `failed`. Renders `HookVideoGrid`.
 
 ### HookVideoGrid
 **File:** `src/components/hooks/hook-video-grid.tsx`
@@ -576,6 +580,75 @@ Card with video preview, session title, creation date, download button, and dele
 **File:** `src/components/hooks/hook-session-detail.tsx`
 **Props:** `{ session: HookSessionWithMedia }`
 Detail view for a completed or in-progress hook session. Shows source info, snapshot, generated images, and generated videos side by side.
+
+---
+
+## Demo Video Components
+
+### DemoVideoLibrary
+**File:** `src/components/hooks/demo-video-library.tsx`
+**Props:** none
+Demo video grid with search input, upload zone, and video cards. Each card shows thumbnail, title, duration, file size, and action buttons (rename, delete). Fetches `GET /api/demo-videos`. Supports search filtering and pagination.
+
+### DemoVideoUploadZone
+**File:** `src/components/hooks/demo-video-upload-zone.tsx`
+**Props:** `{ onUploaded: () => void }`
+Drag-and-drop video upload zone. Uploads via `POST /api/demo-videos` with multipart form data. Shows upload progress indicator.
+
+### DemoVideoPickerDialog
+**File:** `src/components/hooks/demo-video-picker-dialog.tsx`
+**Props:** `{ open: boolean, onOpenChange: (open: boolean) => void, onSelect: (video: DemoVideo) => void }`
+Dialog for selecting a demo video during composition editing. Grid of demo video thumbnails with titles. Click to select and close.
+
+### CompositionScheduleDialog
+**File:** `src/components/hooks/composition-schedule-dialog.tsx`
+**Props:** `{ open: boolean, onOpenChange: (open: boolean) => void, composition: HookComposition, onSaved: () => void }`
+Schedule dialog for compositions. Channel select dropdown (grouped by project), datetime picker, notes input. Calls `PATCH /api/hooks/compositions/[id]`.
+
+---
+
+## Hook Video Editor Components
+
+### HookVideoEditor
+**File:** `src/components/hooks/editor/hook-video-editor.tsx`
+**Props:** `{ videoId: string, compositionId?: string }`
+**State:** `useReducer` for editor state (overlays, demo, playback position)
+Main video editor orchestrator. Loads or creates a draft `hook_compositions` row. Layout: video preview on left, properties panel on right, timeline below. Auto-save debounced 2s via `PATCH /api/hooks/compositions/[id]`.
+
+### VideoPreviewCanvas
+**File:** `src/components/hooks/editor/video-preview-canvas.tsx`
+**Props:** `{ videoUrl: string, overlays: VideoTextOverlay[], currentTime: number, playing: boolean, onTimeUpdate: (time: number) => void }`
+HTML5 `<video>` element with positioned text overlay divs. Shows only overlays whose `startTime <= currentTime <= endTime`. Handles play/pause and time synchronization.
+
+### VideoTextOverlayBlock
+**File:** `src/components/hooks/editor/video-text-overlay-block.tsx`
+**Props:** `{ overlay: VideoTextOverlay, isSelected: boolean, onSelect: () => void, onMove: (x: number, y: number) => void }`
+Draggable text overlay `<div>` positioned over the video preview. Styled according to overlay properties (font, color, shadow, background). Click to select, drag to reposition.
+
+### EditorTimeline
+**File:** `src/components/hooks/editor/editor-timeline.tsx`
+**Props:** `{ duration: number, currentTime: number, overlays: VideoTextOverlay[], onSeek: (time: number) => void, onOverlayTimingChange: (id: string, startTime: number, endTime: number) => void, selectedOverlayId: string | null, onSelectOverlay: (id: string | null) => void }`
+Timeline with playhead scrubber and overlay timing tracks. Playhead shows current position; clicking the timeline ruler seeks. Each overlay rendered as a `TimelineTrack`.
+
+### TimelineTrack
+**File:** `src/components/hooks/editor/timeline-track.tsx`
+**Props:** `{ overlay: VideoTextOverlay, duration: number, isSelected: boolean, onSelect: () => void, onTimingChange: (startTime: number, endTime: number) => void }`
+Single overlay timing bar within the timeline. Drag left/right handles to adjust `startTime`/`endTime`. Bar color matches overlay color. Click to select.
+
+### VideoTextPropertiesPanel
+**File:** `src/components/hooks/editor/video-text-properties-panel.tsx`
+**Props:** `{ overlay: VideoTextOverlay, onChange: (updated: VideoTextOverlay) => void, onDelete: () => void }`
+Text styling and timing controls for the selected overlay. Inputs: text content, font size, font weight, color, alignment, shadow toggle, stroke toggle, background opacity, start time, end time. Delete button removes the overlay.
+
+### DemoVideoSection
+**File:** `src/components/hooks/editor/demo-video-section.tsx`
+**Props:** `{ demoVideo: DemoVideo | null, onAttach: () => void, onRemove: () => void }`
+Section to attach or remove a demo clip from the composition. Shows thumbnail and title when attached, "Add Demo" button when empty. "Add Demo" opens `DemoVideoPickerDialog`. "Remove" clears the demo.
+
+### EditorActions
+**File:** `src/components/hooks/editor/editor-actions.tsx`
+**Props:** `{ compositionId: string, isDirty: boolean, isRendering: boolean, onSave: () => void, onRender: () => void, onClose: () => void }`
+Action bar with Save (disabled when clean), Render (calls `POST /api/hooks/compositions/[id]/render`), and Close buttons. Render button shows spinner while rendering.
 
 ---
 

@@ -1289,7 +1289,7 @@ List all hook creator sessions.
       "id": "uuid",
       "title": "string | null",
       "step": 1,
-      "source_type": "tiktok | upload",
+      "source_type": "tiktok | upload | clip",
       "source_url": "string | null",
       "video_url": "string | null",
       "snapshot_url": "string | null",
@@ -1314,9 +1314,13 @@ Create a new hook creator session.
 ```json
 {
   "title": "optional string",
-  "source_type": "tiktok | upload",
+  "source_type": "tiktok | upload | clip",
   "source_url": "https://www.tiktok.com/...",
-  "video_url": "string (storage URL if uploaded)"
+  "video_url": "string (storage URL if uploaded)",
+  "sourceSessionId": "uuid (optional, for clip source type)",
+  "trimStart": 0,
+  "trimEnd": 5.0,
+  "videoDuration": 5.0
 }
 ```
 
@@ -1405,9 +1409,12 @@ Generate hook images from the session's snapshot via Replicate Nano Banana Pro.
 ```json
 {
   "prompt": "A dynamic hook image...",
-  "numImages": 4
+  "numImages": 4,
+  "model": "google/nano-banana-pro"
 }
 ```
+
+`model` is optional, defaults to `"google/nano-banana-pro"`.
 
 **Response (200):**
 ```json
@@ -1415,8 +1422,8 @@ Generate hook images from the session's snapshot via Replicate Nano Banana Pro.
 ```
 
 **Flow:**
-1. Create `hook_generated_images` records with status `pending`
-2. Submit prediction to Replicate Nano Banana Pro
+1. Create `hook_generated_images` records with status `pending` and `model`
+2. Submit prediction to Replicate using the specified model
 3. Webhook at `POST /api/hooks/webhook` receives completion
 4. Update session step to `selecting_images`
 
@@ -1439,16 +1446,50 @@ Retry a failed hook image generation.
 
 ### PATCH /api/hooks/sessions/[id]/select-images
 
-Mark which generated images are selected for video generation and advance the wizard step.
+Mark which generated images are selected for video generation and advance the wizard step. Supports importing images from other sessions via `sourceImageIds`.
 
 **File:** `src/app/api/hooks/sessions/[id]/select-images/route.ts`
 
-**Request:**
+**Request (select from current session):**
 ```json
 { "selectedImageIds": ["uuid1", "uuid2"] }
 ```
 
+**Request (import from other sessions' image library):**
+```json
+{ "sourceImageIds": ["uuid1", "uuid2"] }
+```
+
+When `sourceImageIds` is provided, the endpoint duplicates the referenced `hook_generated_images` rows into the current session with `selected: true`, then updates the session status.
+
 **Response (200):** `{ "success": true }`
+
+---
+
+### POST /api/hooks/sessions/[id]/trim
+
+Server-side FFmpeg trim of the session video. Auto-generates a thumbnail from the first frame. `maxDuration = 300`.
+
+**File:** `src/app/api/hooks/sessions/[id]/trim/route.ts`
+
+**Request:** No body required. Uses `trim_start` and `trim_end` from the session.
+
+**Response (200):**
+```json
+{
+  "id": "uuid",
+  "trimmed_video_url": "https://...hook-videos/trimmed/uuid.mp4",
+  "trimmed_thumbnail_url": "https://...hook-images/thumbnails/uuid.jpg",
+  "trimmed_duration": 5.0
+}
+```
+
+**Flow:**
+1. Download source video from `video_url`
+2. FFmpeg re-encode trim (`-c:v libx264 -c:a aac`)
+3. Extract first frame as JPEG thumbnail
+4. Upload trimmed video to `hook-videos/trimmed/` and thumbnail to `hook-images/thumbnails/`
+5. Update session with trimmed URLs and duration
 
 ---
 
@@ -1517,6 +1558,40 @@ Replicate webhook receiver. Updates `hook_generated_images` or `hook_generated_v
 
 ---
 
+### GET /api/hooks/images/library
+
+List all completed hook images across all sessions.
+
+**File:** `src/app/api/hooks/images/library/route.ts`
+
+**Query Params:**
+- `page` — Page number (default: 1)
+- `limit` — Results per page (default: 50)
+
+**Response (200):**
+```json
+{
+  "images": [
+    {
+      "id": "uuid",
+      "session_id": "uuid",
+      "image_url": "string",
+      "prompt": "string | null",
+      "status": "completed",
+      "selected": true,
+      "created_at": "ISO timestamp",
+      "hook_sessions": { "id": "uuid", "title": "string | null" }
+    }
+  ],
+  "total": 120,
+  "page": 1,
+  "limit": 50,
+  "hasMore": true
+}
+```
+
+---
+
 ### GET /api/hooks/library
 
 List all completed hook videos across all sessions.
@@ -1582,6 +1657,302 @@ Download a completed hook video file.
 
 **Response:** Binary video file (MP4)
 **Content-Type:** `video/mp4`
+
+---
+
+## Demo Videos API
+
+### GET /api/demo-videos
+
+List demo videos with search and pagination.
+
+**File:** `src/app/api/demo-videos/route.ts`
+
+**Query Params:**
+- `search` — Filter by title (ilike)
+- `page` — Page number (default: 1)
+- `limit` — Results per page (default: 20)
+
+**Response (200):**
+```json
+{
+  "videos": [
+    {
+      "id": "uuid",
+      "video_url": "string",
+      "thumbnail_url": "string | null",
+      "title": "string | null",
+      "duration": 15.5,
+      "file_size": 5242880,
+      "created_at": "ISO timestamp"
+    }
+  ],
+  "total": 25,
+  "page": 1,
+  "limit": 20,
+  "hasMore": true
+}
+```
+
+---
+
+### POST /api/demo-videos
+
+Upload a demo video (multipart). Extracts thumbnail from first frame.
+
+**File:** `src/app/api/demo-videos/route.ts`
+
+**Request:** `multipart/form-data`
+- `file` — Video file (required)
+- `title` — Optional string
+
+**Response (200):**
+```json
+{
+  "video": {
+    "id": "uuid",
+    "video_url": "string",
+    "thumbnail_url": "string",
+    "title": "string | null",
+    "duration": 15.5,
+    "file_size": 5242880,
+    "created_at": "ISO timestamp"
+  }
+}
+```
+
+**Flow:**
+1. Parse multipart form data, validate video file
+2. Upload video to `hook-videos/demos/` bucket
+3. Extract first frame via FFmpeg → upload thumbnail to `hook-images/demo-thumbnails/`
+4. Insert into `demo_videos` table
+5. Return created record
+
+**Errors:**
+- `400` — No file provided or invalid file type
+- `500` — Storage or database failure
+
+---
+
+### PATCH /api/demo-videos/[id]
+
+Rename a demo video title.
+
+**File:** `src/app/api/demo-videos/[id]/route.ts`
+
+**Request:**
+```json
+{ "title": "New Title" }
+```
+
+**Response (200):**
+```json
+{ "video": { ...DemoVideo } }
+```
+
+**Errors:**
+- `400` — Missing title
+- `404` — Demo video not found
+- `500` — Database error
+
+---
+
+### DELETE /api/demo-videos/[id]
+
+Delete a demo video and its storage files.
+
+**File:** `src/app/api/demo-videos/[id]/route.ts`
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Flow:**
+1. Fetch demo video record
+2. Delete video file from `hook-videos/demos/`
+3. Delete thumbnail from `hook-images/demo-thumbnails/`
+4. Delete database record
+
+**Errors:**
+- `404` — Demo video not found
+- `500` — Storage or database failure
+
+---
+
+## Hook Compositions API
+
+### GET /api/hooks/compositions
+
+List hook compositions with filters and pagination.
+
+**File:** `src/app/api/hooks/compositions/route.ts`
+
+**Query Params:**
+- `status` — Filter by status: `draft`, `rendering`, `completed`, `failed` (optional)
+- `reviewStatus` — Filter by review status: `unverified`, `ready_to_post` (optional)
+- `page` — Page number (default: 1)
+- `limit` — Results per page (default: 20)
+
+**Response (200):**
+```json
+{
+  "compositions": [
+    {
+      "id": "uuid",
+      "source_video_id": "uuid",
+      "demo_video_id": "uuid | null",
+      "rendered_video_url": "string | null",
+      "thumbnail_url": "string | null",
+      "text_overlays": [],
+      "duration": 10.5,
+      "status": "completed",
+      "error_message": null,
+      "review_status": "unverified",
+      "channel_id": "uuid | null",
+      "scheduled_at": "ISO timestamp | null",
+      "posted_at": "ISO timestamp | null",
+      "notes": "string | null",
+      "created_at": "ISO timestamp",
+      "updated_at": "ISO timestamp",
+      "hook_generated_videos": { "id": "uuid", "video_url": "string", "thumbnail_url": "string" },
+      "demo_videos": { "id": "uuid", "title": "string", "thumbnail_url": "string" } | null,
+      "project_accounts": { "id": "uuid", "username": "string", "nickname": "string" } | null
+    }
+  ],
+  "total": 42,
+  "page": 1,
+  "limit": 20,
+  "hasMore": true
+}
+```
+
+---
+
+### POST /api/hooks/compositions
+
+Create a draft composition for a hook video.
+
+**File:** `src/app/api/hooks/compositions/route.ts`
+
+**Request:**
+```json
+{
+  "sourceVideoId": "uuid"
+}
+```
+
+**Response (200):**
+```json
+{ "composition": { ...HookComposition } }
+```
+
+**Errors:**
+- `400` — Missing sourceVideoId
+- `404` — Source video not found
+- `500` — Database error
+
+---
+
+### GET /api/hooks/compositions/[id]
+
+Fetch a single composition with related hook video, demo video, and channel.
+
+**File:** `src/app/api/hooks/compositions/[id]/route.ts`
+
+**Response (200):**
+```json
+{
+  "composition": { ...HookCompositionWithRelations }
+}
+```
+
+**Errors:**
+- `404` — Composition not found
+
+---
+
+### PATCH /api/hooks/compositions/[id]
+
+Update composition fields (overlays, demo, scheduling, review status).
+
+**File:** `src/app/api/hooks/compositions/[id]/route.ts`
+
+**Request:** Partial fields to update:
+```json
+{
+  "text_overlays": [...],
+  "demo_video_id": "uuid | null",
+  "channel_id": "uuid | null",
+  "scheduled_at": "ISO timestamp | null",
+  "review_status": "ready_to_post",
+  "notes": "string"
+}
+```
+
+**Response (200):**
+```json
+{ "composition": { ...HookComposition } }
+```
+
+**Errors:**
+- `404` — Composition not found
+- `500` — Database error
+
+---
+
+### DELETE /api/hooks/compositions/[id]
+
+Delete a composition and clean up rendered video from storage.
+
+**File:** `src/app/api/hooks/compositions/[id]/route.ts`
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Errors:**
+- `404` — Composition not found
+- `500` — Storage or database failure
+
+---
+
+### POST /api/hooks/compositions/[id]/render
+
+Render a composition via FFmpeg: burn in text overlays via drawtext filters, optionally concatenate demo video.
+
+**File:** `src/app/api/hooks/compositions/[id]/render/route.ts`
+**Max Duration:** 300s (route-level export)
+
+**Response (200):**
+```json
+{
+  "composition": {
+    "id": "uuid",
+    "rendered_video_url": "string",
+    "thumbnail_url": "string",
+    "duration": 10.5,
+    "status": "completed"
+  }
+}
+```
+
+**Flow:**
+1. Fetch composition with source video and demo video
+2. Download hook video from storage
+3. If demo attached: download demo video
+4. Run FFmpeg with drawtext filters for each text overlay (font: TikTokSans, positioned/timed per overlay config)
+5. If demo attached: FFmpeg concat demux to join hook + demo
+6. Extract thumbnail from first frame
+7. Upload rendered video to `hook-videos/compositions/`
+8. Upload thumbnail to `hook-images/composition-thumbnails/`
+9. Update composition: `status=completed`, `rendered_video_url`, `thumbnail_url`, `duration`
+
+**Errors:**
+- `404` — Composition not found
+- `400` — Composition already rendering
+- `500` — FFmpeg or storage failure (sets `status=failed`, `error_message`)
 
 ---
 

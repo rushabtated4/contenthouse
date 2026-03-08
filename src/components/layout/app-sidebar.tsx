@@ -9,6 +9,9 @@ import {
   CalendarDays,
   Users,
   Clapperboard,
+  Library,
+  Layers,
+  Film,
 } from "lucide-react";
 import {
   Sidebar,
@@ -27,6 +30,9 @@ const contentNav = [
   { label: "Viral Carousels", href: "/videos", icon: GalleryHorizontalEnd, description: "Browse viral TikTok carousels" },
   { label: "Generated", href: "/generated", icon: FolderCheck, description: "View and download generated image sets" },
   { label: "Hook Creator", href: "/hooks", icon: Clapperboard, description: "Create video hooks from snapshots" },
+  { label: "Hook Library", href: "/hooks/library", icon: Library, description: "Browse all generated hook videos" },
+  { label: "Compositions", href: "/hooks/compositions", icon: Layers, description: "Edited hook videos with overlays" },
+  { label: "Demo Videos", href: "/hooks/demos", icon: Film, description: "Product demo clips for compositions" },
 ];
 
 const planNav = [

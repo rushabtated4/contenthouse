@@ -51,10 +51,16 @@ export async function GET(
 
     const zipBuffer = await createZipFromUrls(entries);
 
+    // Use custom filename if provided, otherwise default
+    const rawFilename = new URL(request.url).searchParams.get("filename");
+    const zipFilename = rawFilename
+      ? rawFilename.replace(/[^a-zA-Z0-9_\-\.]/g, "_").replace(/_{2,}/g, "_")
+      : `carousel_set_${set?.set_index ?? 0}.zip`;
+
     return new NextResponse(new Uint8Array(zipBuffer), {
       headers: {
         "Content-Type": "application/zip",
-        "Content-Disposition": `attachment; filename="carousel_set_${set?.set_index ?? 0}.zip"`,
+        "Content-Disposition": `attachment; filename="${zipFilename}"`,
       },
     });
   } catch (err) {

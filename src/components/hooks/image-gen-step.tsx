@@ -16,6 +16,7 @@ export function ImageGenStep({ sessionId, existingImages, onImagesReady }: Image
   const [prompt, setPrompt] = useState("");
   const [numImages, setNumImages] = useState(4);
   const [aspectRatio, setAspectRatio] = useState("2:3");
+  const [model, setModel] = useState("google/nano-banana-pro");
   const [generating, setGenerating] = useState(false);
   const [images, setImages] = useState<HookGeneratedImage[]>(existingImages);
   const [retryingId, setRetryingId] = useState<string | null>(null);
@@ -26,7 +27,7 @@ export function ImageGenStep({ sessionId, existingImages, onImagesReady }: Image
       const res = await fetch(`/api/hooks/sessions/${sessionId}/generate-images`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt, numImages, aspectRatio }),
+        body: JSON.stringify({ prompt, numImages, aspectRatio, model }),
       });
 
       if (!res.ok) {
@@ -79,10 +80,12 @@ export function ImageGenStep({ sessionId, existingImages, onImagesReady }: Image
         prompt={prompt}
         numImages={numImages}
         aspectRatio={aspectRatio}
+        model={model}
         generating={generating}
         onPromptChange={setPrompt}
         onNumImagesChange={setNumImages}
         onAspectRatioChange={setAspectRatio}
+        onModelChange={setModel}
         onGenerate={handleGenerate}
       />
 

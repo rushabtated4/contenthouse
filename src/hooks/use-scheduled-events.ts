@@ -10,7 +10,7 @@ export interface ScheduledEvent {
   backgroundColor?: string;
   borderColor?: string;
   extendedProps: {
-    type: "carousel" | "hook";
+    type: "carousel" | "hook" | "composition";
     setId: string;
     videoId: string | null;
     channelId: string | null;
@@ -28,6 +28,25 @@ function mapEvents(data: unknown): ScheduledEvent[] {
     const isPosted = !!s.posted_at;
     const project = (account as Record<string, unknown>)?.projects as Record<string, unknown> | null;
     const projectColor = (project?.color as string) || undefined;
+
+    if (itemType === "composition") {
+      return {
+        id: s.id as string,
+        title: (s.notes as string)?.slice(0, 50) || "Composition",
+        start: s.scheduled_at as string,
+        backgroundColor: isPosted ? "#16a34a" : projectColor || "#f59e0b",
+        borderColor: isPosted ? "#16a34a" : projectColor || "#f59e0b",
+        extendedProps: {
+          type: "composition" as const,
+          setId: s.id as string,
+          videoId: null,
+          channelId: s.channel_id as string | null,
+          thumbnail: (s.thumbnail_url as string) || null,
+          channelLabel: (account?.username as string) || null,
+          postedAt: (s.posted_at as string) || null,
+        },
+      };
+    }
 
     if (itemType === "hook") {
       // Hook video event

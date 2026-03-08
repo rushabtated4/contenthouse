@@ -12,7 +12,7 @@ export async function POST(
   try {
     const { id } = await params;
     const supabase = createServerClient();
-    const { prompt, numImages = 1, aspectRatio = "2:3" } = await request.json();
+    const { prompt, numImages = 1, aspectRatio = "2:3", model = "google/nano-banana-pro" } = await request.json();
 
     if (!prompt) {
       return NextResponse.json({ error: "prompt is required" }, { status: 400 });
@@ -40,6 +40,7 @@ export async function POST(
     const placeholders = Array.from({ length: numImages }, () => ({
       session_id: id,
       prompt,
+      model,
       status: "generating" as const,
     }));
 
@@ -57,6 +58,7 @@ export async function POST(
         imageUrl: session.snapshot_url,
         numImages,
         aspectRatio,
+        model,
       });
 
       // Download and store each generated image
@@ -122,7 +124,7 @@ export async function POST(
       throw genErr;
     }
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Unknown error";
+    const message = err instanceof Error ? err.message : typeof err === "object" && err !== null ? JSON.stringify(err) : "Unknown error";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

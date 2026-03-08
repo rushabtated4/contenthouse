@@ -10,21 +10,27 @@ interface ImageGenConfigProps {
   prompt: string;
   numImages: number;
   aspectRatio: string;
+  model: string;
   generating: boolean;
   onPromptChange: (prompt: string) => void;
   onNumImagesChange: (n: number) => void;
   onAspectRatioChange: (ar: string) => void;
+  onModelChange: (model: string) => void;
   onGenerate: () => void;
 }
+
+import { HOOK_IMAGE_MODELS } from "@/types/hooks";
 
 export function ImageGenConfig({
   prompt,
   numImages,
   aspectRatio,
+  model,
   generating,
   onPromptChange,
   onNumImagesChange,
   onAspectRatioChange,
+  onModelChange,
   onGenerate,
 }: ImageGenConfigProps) {
   return (
@@ -39,6 +45,26 @@ export function ImageGenConfig({
           rows={3}
           disabled={generating}
         />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Model</Label>
+        <Select
+          value={model}
+          onValueChange={onModelChange}
+          disabled={generating}
+        >
+          <SelectTrigger>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {Object.entries(HOOK_IMAGE_MODELS).map(([value, label]) => (
+              <SelectItem key={value} value={value}>
+                {label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
 
       <div className="grid grid-cols-2 gap-4">

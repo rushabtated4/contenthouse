@@ -35,7 +35,8 @@ contenthouse/
 │   └── migrations/
 │       ├── 001_contenthouse_schema.sql  # Full DB migration
 │       ├── 008_editor_state.sql        # Editor state JSONB column
-│       └── 009_review_status.sql       # Review status column
+│       ├── 009_review_status.sql       # Review status column
+│       └── 014_image_model_column.sql # Model column on hook_generated_images
 ├── scripts/
 │   └── run-migration.mjs            # Migration runner script
 ├── src/
@@ -92,6 +93,7 @@ contenthouse/
 │   │           ├── sessions/[id]/generate-images/retry/route.ts # POST: Retry image
 │   │           ├── sessions/[id]/select-images/route.ts       # PATCH: Select images
 │   │           ├── sessions/[id]/generate-videos/route.ts     # POST: Generate videos
+│   │           ├── sessions/[id]/trim/route.ts                 # POST: FFmpeg trim + thumbnail
 │   │           ├── tiktok-video/route.ts                      # POST: Download TikTok video
 │   │           ├── webhook/route.ts                           # POST: Replicate webhook
 │   │           ├── library/route.ts                           # GET: Completed video library
@@ -113,6 +115,8 @@ contenthouse/
 │   │   ├── tiktok/
 │   │   │   ├── client.ts             # RapidAPI TikTok data fetcher
 │   │   │   └── parse-url.ts          # URL parser (video/photo/short URLs)
+│   │   ├── ffmpeg/
+│   │   │   └── trim.ts               # FFmpeg: trimVideo(), extractFirstFrame()
 │   │   ├── metadata/
 │   │   │   └── strip.ts              # sharp: strip EXIF/XMP/C2PA, resize to 1080x1350
 │   │   ├── storage/

@@ -357,6 +357,28 @@ User uploads video file
 multipart/form-data → upload to `hook-videos` bucket
         └─► PATCH hook_sessions SET video_url, step=2
 
+        OR
+
+User selects a clip from "From Library" tab
+        │
+        ▼
+POST /api/hooks/sessions { sourceType: "clip", videoUrl, sourceSessionId, trimStart, trimEnd, videoDuration }
+        └─► INSERT hook_sessions (source_type="clip", source_session_id=...) → skip to Step 2
+
+--- Trim Auto-Save (non-blocking) ---
+
+After user confirms trim in Step 1 (VideoTrimStep):
+        │
+        ▼
+POST /api/hooks/sessions/[id]/trim
+        │
+        ├─► Download source video from video_url
+        ├─► FFmpeg: trimVideo(buffer, trimStart, trimEnd) → re-encoded trimmed MP4
+        ├─► FFmpeg: extractFirstFrame(trimmedBuffer) → JPEG thumbnail
+        ├─► Upload trimmed video to `hook-videos/trimmed/`
+        ├─► Upload thumbnail to `hook-images/thumbnails/`
+        └─► UPDATE hook_sessions SET trimmed_video_url, trimmed_thumbnail_url, trimmed_duration
+
 --- Step 2: Snapshot ---
 
 User scrubs video to desired frame
@@ -372,18 +394,17 @@ POST /api/hooks/sessions/[id]/snapshot  { time: 2.5 }
         ├─► Upload to `hook-images` bucket
         └─► PATCH hook_sessions SET snapshot_url, snapshot_time, step=3
 
---- Step 3: Image Prompt ---
+--- Step 3: Images (generate + select, merged) ---
 
-User writes image prompt and sets numImages
+Option A: Generate new images
         │
-        ▼
-Click "Next"
+        User writes image prompt and sets numImages in "Generate" tab
         │
         ▼
 POST /api/hooks/sessions/[id]/generate-images  { prompt, numImages }
         │
         ├─► INSERT hook_generated_images[] (status="pending")
-        ├─► PATCH hook_sessions SET image_prompt, status="generating_images", step=4
+        ├─► PATCH hook_sessions SET image_prompt, status="generating_images"
         │
         ├─► createNanaBananaPrediction({
         │       imageUrl: session.snapshot_url,
@@ -393,38 +414,45 @@ POST /api/hooks/sessions/[id]/generate-images  { prompt, numImages }
         │   })
         │
         └─► UPDATE hook_generated_images SET replicate_id
+                │
+                ▼
+        Polls session until all images complete via webhook
+                │
+                ▼
+        POST /api/hooks/webhook  (Replicate → webhook)
+                │
+                ├─► verifyReplicateWebhook(request, REPLICATE_WEBHOOK_SECRET)
+                ├─► Identify record by replicate_id in hook_generated_images
+                ├─► Download output images from Replicate CDN
+                ├─► Upload to `hook-images` bucket
+                └─► UPDATE hook_generated_images SET status="completed", image_url
+                        │
+                        ▼
+        User selects generated images inline, clicks "Confirm"
+                │
+                ▼
+        PATCH /api/hooks/sessions/[id]/select-images  { selectedImageIds }
+                ├─► UPDATE hook_generated_images SET selected=true
+                └─► PATCH hook_sessions SET step=4
 
---- Step 4: Generating Images (polls) ---
-
-HookGeneratingImagesStep polls session every 3s
+Option B: Pick from image library ("From Library" tab)
         │
         ▼
-When Replicate completes:
+GET /api/hooks/images/library?limit=50&page=1
         │
-        ▼
-POST /api/hooks/webhook  (Replicate → webhook)
-        │
-        ├─► verifyReplicateWebhook(request, REPLICATE_WEBHOOK_SECRET)
-        ├─► Identify record by replicate_id in hook_generated_images
-        ├─► Download output images from Replicate CDN
-        ├─► Upload to `hook-images` bucket
-        ├─► UPDATE hook_generated_images SET status="completed", image_url
-        └─► If all completed: PATCH hook_sessions SET status="selecting_images", step=5
+        └─► SELECT hook_generated_images WHERE status="completed"
+                JOIN hook_sessions (id, title)
+                │
+                ▼
+        User selects images from library, clicks "Confirm"
+                │
+                ▼
+        PATCH /api/hooks/sessions/[id]/select-images  { sourceImageIds }
+                ├─► Duplicate selected hook_generated_images rows into current session
+                ├─► Mark duplicates as selected=true
+                └─► PATCH hook_sessions SET step=4
 
---- Step 5: Select Images ---
-
-User selects images to use for video generation
-        │
-        ▼
-Click "Next"
-        │
-        ▼
-PATCH /api/hooks/sessions/[id]/select-images  { selectedImageIds: ["uuid1", "uuid2"] }
-        │
-        ├─► UPDATE hook_generated_images SET selected=true WHERE id IN selectedImageIds
-        └─► PATCH hook_sessions SET step=6
-
---- Step 6: Video Prompt ---
+--- Step 4: Video Prompt ---
 
 User writes video prompt, sets duration and aspect ratio
         │
@@ -436,7 +464,7 @@ POST /api/hooks/sessions/[id]/generate-videos  { prompt, duration, aspectRatio }
         │
         ├─► SELECT hook_generated_images WHERE session_id AND selected=true
         ├─► INSERT hook_generated_videos[] (one per selected image, status="pending")
-        ├─► PATCH hook_sessions SET video_prompt, video_duration, video_aspect_ratio, status="generating_videos", step=7
+        ├─► PATCH hook_sessions SET video_prompt, video_duration, video_aspect_ratio, status="generating_videos", step=5
         │
         ├─► For each selected image:
         │       └─► createKlingPrediction({
@@ -448,7 +476,7 @@ POST /api/hooks/sessions/[id]/generate-videos  { prompt, duration, aspectRatio }
         │
         └─► Return { videos: [...] }
 
---- Step 7: Generating Videos (polls) ---
+--- Step 5: Results (generating videos, polls) ---
 
 HookGeneratingVideosStep polls session every 5s
         │
@@ -499,4 +527,104 @@ GeneratedGrid renders:
         ├─ Sort dropdown
         ├─ Grid of GeneratedSetCards (thumbnail + status + description)
         └─ Pagination (Previous / Next)
+```
+
+## 10. Hook Video Composition
+
+```
+User opens editor from wizard Step 6 or standalone page /hooks/edit/[videoId]
+        │
+        ▼
+HookVideoEditor mounts
+        │
+        ├─► If compositionId provided:
+        │       GET /api/hooks/compositions/[id] → load existing draft
+        │
+        ├─► Else:
+        │       POST /api/hooks/compositions { sourceVideoId } → create new draft
+        │
+        └─► Editor state initialized (useReducer)
+                │
+                ▼
+--- Text Overlays (max 3) ---
+
+User clicks "Add Text" → creates VideoTextOverlay with defaults
+        │
+        ├─ Drag overlay on VideoPreviewCanvas to reposition (x, y)
+        ├─ Edit text, font, color, shadow, stroke in VideoTextPropertiesPanel
+        └─ Adjust startTime/endTime via EditorTimeline drag handles
+                │
+                ▼
+--- Demo Video (optional) ---
+
+User clicks "Add Demo" in DemoVideoSection
+        │
+        ▼
+DemoVideoPickerDialog opens → GET /api/demo-videos
+        │
+        ├─ User selects a demo video
+        └─► Composition updated: demo_video_id set
+                │
+                ▼
+--- Auto-Save (debounced 2s) ---
+
+Any change to overlays, demo, or notes
+        │
+        ▼
+PATCH /api/hooks/compositions/[id]  { text_overlays, demo_video_id, notes }
+        │
+        └─► UPDATE hook_compositions SET text_overlays, demo_video_id, notes, updated_at
+                │
+                ▼
+--- Render ---
+
+User clicks "Render" in EditorActions
+        │
+        ▼
+POST /api/hooks/compositions/[id]/render
+        │
+        ├─► UPDATE hook_compositions SET status="rendering"
+        │
+        ├─► Download hook video from hook_generated_videos.video_url
+        │
+        ├─► If demo_video_id:
+        │       ├─ Download demo from demo_videos.video_url
+        │       └─ Will be concatenated after hook
+        │
+        ├─► renderComposition({
+        │       hookVideoBuffer,
+        │       demoVideoBuffer?,
+        │       textOverlays: composition.text_overlays
+        │   })
+        │       │
+        │       ├─ FFmpeg drawtext filters per overlay (with enable timing)
+        │       ├─ FFmpeg concat demux if demo present
+        │       └─ Re-encode: libx264 + aac + faststart
+        │
+        ├─► Extract thumbnail from first frame
+        │
+        ├─► Upload rendered video to `hook-videos/compositions/`
+        ├─► Upload thumbnail to `hook-images/composition-thumbnails/`
+        │
+        └─► UPDATE hook_compositions SET
+                status="completed",
+                rendered_video_url,
+                thumbnail_url,
+                duration
+                │
+                ▼
+        On error: UPDATE SET status="failed", error_message
+                │
+                ▼
+--- Post-Render ---
+
+Composition appears in /hooks/compositions page
+        │
+        ├─ User can review and set review_status → "ready_to_post"
+        │       PATCH /api/hooks/compositions/[id] { review_status }
+        │
+        ├─ User can schedule to channel via CompositionScheduleDialog
+        │       PATCH /api/hooks/compositions/[id] { channel_id, scheduled_at }
+        │
+        └─ Scheduled compositions appear on calendar
 ```

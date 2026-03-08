@@ -34,6 +34,8 @@ export async function POST(request: NextRequest) {
 
     // Extract download URL from response
     const downloadUrl =
+      rapidData?.play ||
+      rapidData?.play_watermark ||
       rapidData?.data?.play ||
       rapidData?.data?.hdplay ||
       rapidData?.data?.wmplay;
@@ -49,9 +51,41 @@ export async function POST(request: NextRequest) {
     const videoBuffer = Buffer.from(await videoRes.arrayBuffer());
     const { url: storedUrl } = await uploadToStorage("hook-videos", videoBuffer, "mp4", "source");
 
+    // Best-effort: fetch stats via post detail endpoint
+    let stats: { playCount: number; diggCount: number; commentCount: number; shareCount: number; collectCount: number } | null = null;
+    if (tiktokVideoId) {
+      try {
+        const statsRes = await fetch(
+          `https://${process.env.RAPIDAPI_TIKTOK_HOST}/api/post/detail?videoId=${tiktokVideoId}`,
+          {
+            headers: {
+              "x-rapidapi-key": process.env.RAPIDAPI_KEY!,
+              "x-rapidapi-host": process.env.RAPIDAPI_TIKTOK_HOST!,
+            },
+          }
+        );
+        if (statsRes.ok) {
+          const statsData = await statsRes.json();
+          const s = statsData?.itemInfo?.itemStruct?.stats;
+          if (s) {
+            stats = {
+              playCount: Number(s.playCount) || 0,
+              diggCount: Number(s.diggCount) || 0,
+              commentCount: Number(s.commentCount) || 0,
+              shareCount: Number(s.shareCount) || 0,
+              collectCount: Number(s.collectCount) || 0,
+            };
+          }
+        }
+      } catch {
+        // Non-blocking — stats are optional
+      }
+    }
+
     return NextResponse.json({
       videoUrl: storedUrl,
       tiktokVideoId,
+      stats,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";

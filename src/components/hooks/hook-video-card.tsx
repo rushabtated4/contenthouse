@@ -2,7 +2,7 @@
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Download, Check, Calendar, Play, Trash2 } from "lucide-react";
+import { Download, Check, Calendar, Play, Trash2, Pencil } from "lucide-react";
 import type { HookGeneratedVideoWithRelations } from "@/types/hooks";
 import { format } from "date-fns";
 
@@ -32,6 +32,12 @@ export function HookVideoCard({ video, onPlay, onDownload, onMarkUsed, onSchedul
 
       <div className="p-3 space-y-2">
         <div className="flex items-center gap-1 flex-wrap">
+          {(video as HookGeneratedVideoWithRelations & { composition_count?: number }).composition_count != null &&
+            (video as HookGeneratedVideoWithRelations & { composition_count?: number }).composition_count! > 0 && (
+            <Badge className="bg-amber-500 text-[10px]">
+              {(video as HookGeneratedVideoWithRelations & { composition_count?: number }).composition_count} comp
+            </Badge>
+          )}
           {video.is_used && <Badge variant="secondary">Used</Badge>}
           {video.scheduled_at && (
             <Badge variant="outline">{format(new Date(video.scheduled_at), "MMM d")}</Badge>
@@ -59,6 +65,11 @@ export function HookVideoCard({ video, onPlay, onDownload, onMarkUsed, onSchedul
           </Button>
           <Button size="sm" variant="outline" onClick={() => onSchedule(video.id)}>
             <Calendar className="w-3 h-3" />
+          </Button>
+          <Button size="sm" variant="outline" asChild>
+            <a href={`/hooks/edit/${video.id}`}>
+              <Pencil className="w-3 h-3" />
+            </a>
           </Button>
           <Button size="sm" variant="outline" onClick={() => onDelete(video.id)}>
             <Trash2 className="w-3 h-3" />

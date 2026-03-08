@@ -182,11 +182,13 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
   async function handleDownload(setId: string) {
     setActionLoading("download");
     try {
-      const channel = sanitizeFilename(account.nickname ?? "channel");
+      const channel = sanitizeFilename(account.nickname ?? account.username);
       const date = popover?.slot.set?.scheduled_at
         ? formatDateForFilename(popover.slot.set.scheduled_at)
         : setId.slice(0, 8);
-      await downloadSetAsZip(setId, `${channel}_${date}.zip`);
+      const slotIndex = popover?.cell.slots.findIndex((s) => s.set?.id === setId) ?? -1;
+      const slotSuffix = slotIndex >= 0 && popover!.cell.slots.length > 1 ? `_Slot${slotIndex + 1}` : "";
+      await downloadSetAsZip(setId, `${channel}_${date}${slotSuffix}.zip`);
     } finally {
       setActionLoading(null);
     }
@@ -335,21 +337,32 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
                     <span className="text-[10px] text-muted-foreground leading-7 truncate">
                       {week.weekLabel}
                     </span>
-                    {week.days.map((cell, di) => (
-                      <div
-                        key={di}
-                        className={`h-7 w-full rounded flex items-center justify-center ${getCellColor(cell)} ${cell.active && !(isCellPast(cell) && cell.slots.every((s) => s.status === "empty")) ? "cursor-pointer hover:opacity-80" : ""} transition-colors`}
-                        onMouseEnter={(e) => handleCellHover(e, cell)}
-                        onMouseLeave={() => setTooltip(null)}
-                        onClick={(e) => handleCellClick(e, cell)}
-                      >
-                        {cell.active && postsPerDay > 1 && cell.slots.length > 0 && (
-                          <span className="text-[9px] font-bold text-white">
-                            {cell.slots.filter((s) => s.status !== "empty").length}/{postsPerDay}
-                          </span>
-                        )}
-                      </div>
-                    ))}
+                    {week.days.map((cell, di) => {
+                      const isInteractive = cell.active && !(isCellPast(cell) && cell.slots.every((s) => s.status === "empty"));
+                      const showSegments = cell.active && postsPerDay > 1 && cell.slots.length > 1;
+
+                      return (
+                        <div
+                          key={di}
+                          className={`h-7 w-full rounded overflow-hidden ${showSegments ? "flex gap-0.5" : `flex items-center justify-center ${getCellColor(cell)}`} ${isInteractive ? "cursor-pointer hover:opacity-80" : ""} transition-colors`}
+                          onMouseEnter={(e) => handleCellHover(e, cell)}
+                          onMouseLeave={() => setTooltip(null)}
+                          onClick={(e) => handleCellClick(e, cell)}
+                        >
+                          {showSegments && cell.slots.map((s, si) => {
+                            const past = isCellPast(cell);
+                            const segColor = s.status === "posted"
+                              ? "bg-green-500"
+                              : s.status === "scheduled"
+                                ? "bg-blue-500"
+                                : past
+                                  ? "bg-muted/30"
+                                  : "bg-orange-400";
+                            return <div key={si} className={`flex-1 h-full ${segColor}`} />;
+                          })}
+                        </div>
+                      );
+                    })}
                   </div>
                 ))}
 

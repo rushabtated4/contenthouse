@@ -6,15 +6,16 @@ import { StepIndicator } from "./step-indicator";
 import { VideoInputStep } from "./video-input-step";
 import { VideoTrimStep } from "./video-trim-step";
 import { SnapshotStep } from "./snapshot-step";
-import { ImageGenStep } from "./image-gen-step";
-import { ImageSelectStep } from "./image-select-step";
+import { ImageStep } from "./image-step";
 import { VideoGenStep } from "./video-gen-step";
 import { VideoResultCard } from "./video-result-card";
 import { HookVideoPlayerDialog } from "./hook-video-player-dialog";
 import { HookScheduleDialog } from "./hook-schedule-dialog";
+import { HookVideoEditor } from "./editor/hook-video-editor";
 import { useHookSession } from "@/hooks/use-hook-session";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, ArrowRight, Library } from "lucide-react";
+import { ArrowLeft, ArrowRight, Library, Pencil } from "lucide-react";
+import type { HookSession } from "@/types/hooks";
 import { toast } from "sonner";
 import Link from "next/link";
 
@@ -34,24 +35,24 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
   useEffect(() => {
     if (!session) return;
     let restoredStep = 0;
-    switch (session.status) {
+
+    // Clip-based sessions skip trim (Step 1) and start at Step 2
+    if (session.source_type === "clip" && session.status === "draft") {
+      restoredStep = 2;
+    } else switch (session.status) {
       case "draft":
         restoredStep = session.snapshot_url ? 2 : session.video_url ? 1 : 0;
         break;
       case "snapshot_ready":
-        restoredStep = 3;
-        break;
       case "generating_images":
-        restoredStep = 3;
-        break;
       case "images_ready":
-        restoredStep = 4;
+        restoredStep = 3;
         break;
       case "generating_videos":
-        restoredStep = 5;
+        restoredStep = 4;
         break;
       case "completed":
-        restoredStep = 6;
+        restoredStep = 5;
         break;
     }
     if (restoredStep > step) {
@@ -70,9 +71,11 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
 
   const [playingUrl, setPlayingUrl] = useState<string | null>(null);
   const [schedulingId, setSchedulingId] = useState<string | null>(null);
+  const [editingVideoId, setEditingVideoId] = useState<string | null>(null);
+  const [editingVideoUrl, setEditingVideoUrl] = useState<string | null>(null);
 
   // Step 1: Create session
-  const handleTiktokVideo = async (videoUrl: string, tiktokUrl: string, tiktokVideoId: string | null) => {
+  const handleTiktokVideo = async (videoUrl: string, tiktokUrl: string, tiktokVideoId: string | null, stats: { playCount: number; diggCount: number; commentCount: number; shareCount: number; collectCount: number } | null) => {
     try {
       const res = await fetch("/api/hooks/sessions", {
         method: "POST",
@@ -82,6 +85,7 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
           videoUrl,
           tiktokUrl,
           tiktokVideoId,
+          stats,
         }),
       });
       if (!res.ok) throw new Error("Failed to create session");
@@ -122,8 +126,50 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
       });
       refetch();
       advanceStep(2);
+
+      // Auto-save trimmed clip in background (non-blocking)
+      fetch(`/api/hooks/sessions/${sessionId}/trim`, { method: "POST" })
+        .then(async (res) => {
+          if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            console.error("Clip auto-save failed:", data.error || res.statusText);
+            toast.error("Clip auto-save failed: " + (data.error || res.statusText));
+          } else {
+            toast.success("Trimmed clip saved to library");
+          }
+        })
+        .catch((err) => {
+          console.error("Clip auto-save failed:", err);
+          toast.error("Clip auto-save failed");
+        });
     } catch {
       toast.error("Failed to save trim");
+    }
+  };
+
+  // From Library: select a trimmed clip
+  const handleSelectClip = async (sourceSession: HookSession) => {
+    if (!sourceSession.trimmed_video_url) return;
+    try {
+      const res = await fetch("/api/hooks/sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sourceType: "clip",
+          videoUrl: sourceSession.trimmed_video_url,
+          sourceSessionId: sourceSession.id,
+          videoDuration: sourceSession.trimmed_duration,
+          trimStart: 0,
+          trimEnd: sourceSession.trimmed_duration,
+        }),
+      });
+      if (!res.ok) throw new Error("Failed to create session from clip");
+      const data = await res.json();
+      setSessionId(data.id);
+      router.replace(`/hooks/${data.id}`);
+      advanceStep(2); // Skip trim, go to snapshot
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to use clip");
     }
   };
 
@@ -177,6 +223,7 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
         <VideoInputStep
           onTiktokVideo={handleTiktokVideo}
           onUploadVideo={handleUploadVideo}
+          onSelectClip={handleSelectClip}
         />
       )}
 
@@ -205,47 +252,35 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
         />
       )}
 
-      {/* Step 3: Generate Images */}
+      {/* Step 3: Images (Generate + Select) */}
       {step === 3 && session && sessionId && (
-        <ImageGenStep
+        <ImageStep
           sessionId={sessionId}
           existingImages={session.hook_generated_images || []}
-          onImagesReady={() => {
+          onSelectionConfirmed={() => {
             refetch();
             advanceStep(4);
           }}
         />
       )}
 
-      {/* Step 4: Select Images */}
+      {/* Step 4: Generate Videos */}
       {step === 4 && session && sessionId && (
-        <ImageSelectStep
+        <VideoGenStep
           sessionId={sessionId}
-          images={session.hook_generated_images || []}
-          onSelectionConfirmed={() => {
+          existingVideos={session.hook_generated_videos || []}
+          onVideosStarted={() => {
             refetch();
             advanceStep(5);
           }}
         />
       )}
 
-      {/* Step 5: Generate Videos */}
-      {step === 5 && session && sessionId && (
-        <VideoGenStep
-          sessionId={sessionId}
-          existingVideos={session.hook_generated_videos || []}
-          onVideosStarted={() => {
-            refetch();
-            advanceStep(6);
-          }}
-        />
-      )}
-
-      {/* Step 6: Results */}
-      {step === 6 && session && (
+      {/* Step 5: Results */}
+      {step === 5 && session && (
         <div className="space-y-4">
           <div>
-            <h2 className="text-lg font-semibold">Step 7: Results</h2>
+            <h2 className="text-lg font-semibold">Step 6: Results</h2>
             <p className="text-sm text-muted-foreground">
               Your generated hook videos are ready. Download, schedule, or regenerate.
             </p>
@@ -266,6 +301,11 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
                 onMarkUsed={handleMarkUsed}
                 onSchedule={setSchedulingId}
                 onPlay={setPlayingUrl}
+                onEdit={(id, url) => {
+                  setEditingVideoId(id);
+                  setEditingVideoUrl(url);
+                  advanceStep(6);
+                }}
               />
             ))}
           </div>
@@ -285,6 +325,23 @@ export function HookCreatorWizard({ sessionId: initialSessionId }: HookCreatorWi
               </Link>
             </Button>
           </div>
+        </div>
+      )}
+
+      {/* Step 6: Edit & Compose */}
+      {step === 6 && editingVideoId && editingVideoUrl && (
+        <div className="space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold">Step 7: Edit & Compose</h2>
+            <p className="text-sm text-muted-foreground">
+              Add text overlays and attach a demo video to create a composition.
+            </p>
+          </div>
+          <HookVideoEditor
+            videoId={editingVideoId}
+            videoUrl={editingVideoUrl}
+            onClose={() => setStep(5)}
+          />
         </div>
       )}
 

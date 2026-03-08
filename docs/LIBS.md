@@ -112,6 +112,30 @@ async function fetchTikTokPost(url: string): Promise<TikTokPostData>
 
 ---
 
+## lib/ffmpeg/trim.ts
+
+Server-side video trimming and frame extraction using `ffmpeg-static`.
+
+```typescript
+async function trimVideo(
+  inputBuffer: Buffer,
+  startSeconds: number,
+  endSeconds: number
+): Promise<Buffer>
+
+async function extractFirstFrame(
+  inputBuffer: Buffer
+): Promise<Buffer>  // JPEG
+```
+
+**Details:**
+- Uses temp files in `/tmp`, cleans up in `finally`
+- `trimVideo` re-encodes with `-c:v libx264 -c:a aac -movflags +faststart`
+- `extractFirstFrame` outputs a single JPEG frame with `-vframes 1`
+- FFmpeg binary path from `ffmpeg-static` package
+
+---
+
 ## lib/storage/upload.ts
 
 Upload files to Supabase Storage.
@@ -511,6 +535,7 @@ interface NanaBananaParams {
   imageUrl: string;        // Input image URL (snapshot frame)
   prompt: string;          // Generation prompt
   numImages?: number;      // Number of images to generate (default: 4)
+  model?: string;          // Replicate model ID (default: "google/nano-banana-pro")
   webhookUrl: string;      // URL Replicate will POST results to
 }
 
@@ -563,3 +588,31 @@ async function verifyReplicateWebhook(
 // Returns true if the webhook signature is valid, false otherwise
 // Uses: replicate-webhook-id, replicate-webhook-timestamp, replicate-webhook-signature headers
 ```
+
+---
+
+## lib/ffmpeg/render-composition.ts
+
+Server-side FFmpeg composition rendering for hook videos. Burns in text overlays via drawtext filters and optionally concatenates a demo video.
+
+```typescript
+interface RenderCompositionOpts {
+  hookVideoBuffer: Buffer;           // Source hook video
+  demoVideoBuffer?: Buffer;          // Optional demo video to append
+  textOverlays: VideoTextOverlay[];  // Text overlays with timing
+  outputPath: string;                // Temp file path for output
+}
+
+async function renderComposition(opts: RenderCompositionOpts): Promise<Buffer>
+// Returns rendered MP4 buffer
+```
+
+**Details:**
+- Uses temp files in `/tmp`, cleans up in `finally`
+- Text burn-in via FFmpeg `drawtext` filter with TikTok Sans font files (`public/fonts/TikTokSans-*.ttf`)
+- Each overlay maps to a `drawtext` filter with: `text`, `fontsize`, `fontcolor`, `x`, `y`, `enable='between(t,startTime,endTime)'`
+- Shadow rendered as a second `drawtext` with offset and `shadowcolor`
+- Background pill rendered via `drawbox` filter with `enable` timing
+- When demo video provided: uses FFmpeg concat demux (`-f concat -safe 0`) to join hook + demo
+- Re-encodes with `-c:v libx264 -c:a aac -movflags +faststart`
+- FFmpeg binary path from `ffmpeg-static` package

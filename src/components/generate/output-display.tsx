@@ -1,6 +1,6 @@
 "use client";
 
-import { downloadSetAsZip } from "@/lib/client/download-zip";
+import { downloadSetAsZip, formatDateForFilename, sanitizeFilename } from "@/lib/client/download-zip";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ImageThumbnail } from "@/components/shared/image-thumbnail";
@@ -17,8 +17,10 @@ interface OutputDisplayProps {
 export function OutputDisplay({ sets, onRetryImage }: OutputDisplayProps) {
   if (sets.length === 0) return null;
 
-  const handleDownload = (setId: string) => {
-    downloadSetAsZip(setId, `carousel_${setId.slice(0, 8)}.zip`);
+  const handleDownload = (set: GenerationSetWithImages) => {
+    const name = set.title ? sanitizeFilename(set.title) : "carousel";
+    const datePart = set.scheduled_at ? formatDateForFilename(set.scheduled_at) : set.id.slice(0, 8);
+    downloadSetAsZip(set.id, `${name}_${datePart}.zip`);
   };
 
   return (
@@ -56,7 +58,7 @@ export function OutputDisplay({ sets, onRetryImage }: OutputDisplayProps) {
                 variant="outline"
                 size="sm"
                 className="gap-1.5"
-                onClick={() => handleDownload(set.id)}
+                onClick={() => handleDownload(set)}
               >
                 <Download className="w-3.5 h-3.5" />
                 Download ZIP

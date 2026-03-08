@@ -43,8 +43,32 @@ export async function GET(request: NextRequest) {
     const { data, error, count } = await query;
     if (error) throw error;
 
+    let videos = data || [];
+
+    // Compute composition counts for each video
+    if (videos.length > 0) {
+      const videoIds = videos.map((v) => v.id);
+      const { data: compData } = await supabase
+        .from("hook_compositions")
+        .select("source_video_id")
+        .in("source_video_id", videoIds);
+
+      const compCounts: Record<string, number> = {};
+      if (compData) {
+        for (const row of compData) {
+          const vid = row.source_video_id as string;
+          compCounts[vid] = (compCounts[vid] || 0) + 1;
+        }
+      }
+
+      videos = videos.map((v) => ({
+        ...v,
+        composition_count: compCounts[v.id] || 0,
+      }));
+    }
+
     return NextResponse.json({
-      videos: data || [],
+      videos,
       total: count || 0,
       page,
       limit,

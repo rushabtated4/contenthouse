@@ -13,6 +13,7 @@ import { ZOrderControls } from "./z-order-controls";
 import { ClearSlidesDialog } from "./clear-slides-dialog";
 import { CanvasBackgroundUpload } from "./canvas-bg-upload";
 import { ExtractTextModal } from "./extract-text-modal";
+import { EditorGenerationControls } from "./editor-generation-controls";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
@@ -30,9 +31,10 @@ const EditorCanvas = dynamic(() => import("./editor-canvas").then((m) => m.Edito
 interface CarouselEditorProps {
   video: Video & { generation_sets?: GenerationSetWithImages[] };
   editorSetId?: string | null;
+  onRefetch?: () => void;
 }
 
-export function CarouselEditor({ video, editorSetId }: CarouselEditorProps) {
+export function CarouselEditor({ video, editorSetId, onRefetch }: CarouselEditorProps) {
   const initFromVideo = useEditorStore((s) => s.initFromVideo);
   const initFromGeneratedSet = useEditorStore((s) => s.initFromGeneratedSet);
   const slides = useEditorStore((s) => s.slides);
@@ -47,6 +49,14 @@ export function CarouselEditor({ video, editorSetId }: CarouselEditorProps) {
   const extractionStatus = useEditorStore((s) => s.extractionStatus);
 
   const activeSlide = slides[activeSlideIndex];
+
+  // Find active generation set for controls
+  const activeSet = editorSetId
+    ? video.generation_sets?.find((s) => s.id === editorSetId)
+    : undefined;
+  const hasGeneratedImages = activeSet?.generated_images?.some(
+    (img) => img.status === "completed"
+  );
 
   // Check if exactly one text block is selected
   const selectedTextBlock = selectedIds.length === 1 && activeSlide
@@ -78,6 +88,10 @@ export function CarouselEditor({ video, editorSetId }: CarouselEditorProps) {
   return (
     <div className="space-y-4">
       <EditorToolbar />
+
+      {activeSet && hasGeneratedImages && (
+        <EditorGenerationControls set={activeSet} onUpdated={onRefetch} />
+      )}
 
       {/* Reference slides strip */}
       {originalSlides.length > 0 && (

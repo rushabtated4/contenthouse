@@ -40,7 +40,7 @@ export function ScheduleList({ events, onRefetch }: ScheduleListProps) {
   ) => {
     setDownloadingIds((prev) => new Set(prev).add(setId));
     try {
-      const channel = sanitizeFilename(channelLabel ?? "channel");
+      const channel = sanitizeFilename(channelLabel ?? "carousel");
       const date = formatDateForFilename(dateStr);
       await downloadSetAsZip(setId, `${channel}_${date}.zip`);
     } catch {
