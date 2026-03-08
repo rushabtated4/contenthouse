@@ -1956,6 +1956,156 @@ Render a composition via FFmpeg: burn in text overlays via drawtext filters, opt
 
 ---
 
+## Poster Portal API
+
+### POST /api/poster/login
+
+Authenticate a poster by username/password. Sets `ch_poster` cookie on success.
+
+**File:** `src/app/api/poster/login/route.ts`
+
+**Request:**
+```json
+{
+  "username": "jane",
+  "password": "secret"
+}
+```
+
+**Response (200):**
+```json
+{
+  "poster": {
+    "id": "uuid",
+    "username": "jane",
+    "display_name": "Jane Doe"
+  }
+}
+```
+
+**Errors:**
+- `400` — Missing username or password
+- `401` — Invalid credentials
+
+---
+
+### GET /api/poster/channels
+
+Get the authenticated poster's assigned channels. Reads `ch_poster` cookie.
+
+**File:** `src/app/api/poster/channels/route.ts`
+
+**Response (200):**
+```json
+{
+  "channels": [
+    {
+      "id": "uuid",
+      "username": "tiktokuser",
+      "nickname": "Display Name",
+      "project_id": "uuid",
+      "projects": { "id": "uuid", "name": "Project Name", "color": "#hex" }
+    }
+  ]
+}
+```
+
+**Errors:**
+- `401` — Missing or invalid poster cookie
+
+---
+
+### GET /api/posters
+
+List all posters with their assigned channels.
+
+**File:** `src/app/api/posters/route.ts`
+
+**Response (200):**
+```json
+{
+  "posters": [
+    {
+      "id": "uuid",
+      "username": "jane",
+      "display_name": "Jane Doe",
+      "created_at": "ISO timestamp",
+      "updated_at": "ISO timestamp",
+      "project_accounts": [
+        { "id": "uuid", "username": "tiktokuser", "nickname": "string | null" }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### POST /api/posters
+
+Create a new poster account.
+
+**File:** `src/app/api/posters/route.ts`
+
+**Request:**
+```json
+{
+  "username": "jane",
+  "password": "secret",
+  "display_name": "Jane Doe"
+}
+```
+
+**Response (200):**
+```json
+{ "poster": { ...Poster } }
+```
+
+**Errors:**
+- `400` — Missing required fields or username already taken
+
+---
+
+### DELETE /api/posters
+
+Bulk delete posters by IDs.
+
+**File:** `src/app/api/posters/route.ts`
+
+**Request:**
+```json
+{ "ids": ["uuid1", "uuid2"] }
+```
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+---
+
+### PUT /api/posters/[id]/channels
+
+Assign channels to a poster. Sets `poster_id` on specified channel IDs and nullifies on all other channels previously assigned to this poster.
+
+**File:** `src/app/api/posters/[id]/channels/route.ts`
+
+**Request:**
+```json
+{ "channelIds": ["uuid1", "uuid2"] }
+```
+
+**Response (200):**
+```json
+{ "success": true }
+```
+
+**Errors:**
+- `400` — Missing channelIds
+- `404` — Poster not found
+
+---
+
 ## Error Format
 
 All API errors follow this shape:

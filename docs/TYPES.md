@@ -53,6 +53,28 @@ interface ProjectAccount {
   added_at: string;
   days_of_week: number[] | null;
   posts_per_day: number | null;
+  poster_id: string | null;
+  posters: Pick<Poster, "id" | "display_name"> | null;
+}
+```
+
+### Poster
+
+```typescript
+interface Poster {
+  id: string;
+  username: string;
+  display_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+```
+
+### PosterWithChannels
+
+```typescript
+interface PosterWithChannels extends Poster {
+  project_accounts: ProjectAccount[];
 }
 ```
 
@@ -919,6 +941,17 @@ interface HookCompositionWithRelations extends HookComposition {
 ```
 
 ---
+
+### usePosterOverview
+
+```typescript
+{
+  channels: ProjectAccountWithProject[];
+  scheduledSets: ScheduledSetSummary[];
+  loading: boolean;
+  refetch: () => Promise<void>;
+}
+```
 
 ### useHookLibrary Return Type
 

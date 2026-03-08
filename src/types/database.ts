@@ -34,6 +34,20 @@ export interface ProjectAccount {
   added_at: string;
   days_of_week: number[] | null;
   posts_per_day: number | null;
+  poster_id: string | null;
+  posters: Pick<Poster, "id" | "display_name"> | null;
+}
+
+export interface Poster {
+  id: string;
+  username: string;
+  display_name: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PosterWithChannels extends Poster {
+  project_accounts: ProjectAccount[];
 }
 
 export interface ProjectAccountWithProject extends ProjectAccount {

@@ -3,6 +3,8 @@
 import { FolderOpen, AlertTriangle } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AccountScheduleCard } from "./account-schedule-card";
+import { TodayPosts } from "./today-posts";
+import { PosterManagement } from "./poster-management";
 import { useAccountOverview, computeSlots } from "@/hooks/use-account-overview";
 
 export function AccountList() {
@@ -72,6 +74,13 @@ export function AccountList() {
         </span>
       </div>
 
+      {/* To Post Today */}
+      <TodayPosts
+        scheduledSets={scheduledSets}
+        allAccounts={allAccounts}
+        onMutate={mutate}
+      />
+
       {projects.length === 0 ? (
         <div className="rounded-lg border border-border flex flex-col items-center justify-center py-10 text-center">
           <FolderOpen className="h-8 w-8 text-muted-foreground/40 mb-2" />
@@ -113,6 +122,9 @@ export function AccountList() {
           </div>
         ))
       )}
+
+      {/* Poster Management */}
+      <PosterManagement />
     </div>
   );
 }

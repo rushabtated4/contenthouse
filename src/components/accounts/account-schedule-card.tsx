@@ -32,6 +32,7 @@ interface Props {
   account: ProjectAccount;
   scheduledSets: ScheduledSetSummary[];
   onMutate: () => void;
+  readOnly?: boolean;
 }
 
 interface PopoverState {
@@ -41,7 +42,7 @@ interface PopoverState {
   y: number;
 }
 
-export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props) {
+export function AccountScheduleCard({ account, scheduledSets, onMutate, readOnly }: Props) {
   const router = useRouter();
   const [localAccount, setLocalAccount] = useState<ProjectAccount>(account);
   const [editing, setEditing] = useState(false);
@@ -112,10 +113,10 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
     const rect = cardRef.current?.getBoundingClientRect();
     if (!rect) return;
 
-    // Block assignment to past dates
+    // Block assignment to past dates or readOnly mode
     const allEmpty = cell.slots.every((s) => s.status === "empty");
     if (allEmpty && cell.slots.length > 0) {
-      if (isCellPast(cell)) return;
+      if (readOnly || isCellPast(cell)) return;
       setAssignSlot(cell.slots[0]);
       return;
     }
@@ -252,6 +253,11 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
                     {localAccount.nickname}
                   </span>
                 )}
+                {localAccount.posters && (
+                  <span className="text-muted-foreground font-normal ml-1.5 text-xs">
+                    · {localAccount.posters.display_name}
+                  </span>
+                )}
               </span>
 
               <div className="flex gap-0.5 shrink-0">
@@ -280,15 +286,17 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
                 </span>
               )}
 
-              <Button
-                size="sm"
-                variant="ghost"
-                className="h-5 px-1.5 text-[11px] gap-0.5 ml-auto shrink-0"
-                onClick={() => setEditing(true)}
-              >
-                <Pencil className="h-3 w-3" />
-                Edit
-              </Button>
+              {!readOnly && (
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-5 px-1.5 text-[11px] gap-0.5 ml-auto shrink-0"
+                  onClick={() => setEditing(true)}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -404,7 +412,7 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
           <>
             {/* Backdrop to close */}
             <div
-              className="fixed inset-0 z-40"
+              className="fixed inset-0 z-40 bg-transparent"
               onClick={() => setPopover(null)}
             />
             <div
@@ -468,7 +476,7 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
 
               {/* Actions for the selected slot */}
               {popover.slot.status === "empty" ? (
-                !isCellPast(popover.cell) && (
+                !readOnly && !isCellPast(popover.cell) && (
                   <PopoverButton
                     icon={<Plus className="h-3.5 w-3.5" />}
                     label="Assign set"
@@ -534,39 +542,43 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
                   )}
 
                   {/* Remove time only */}
-                  <PopoverButton
-                    icon={
-                      actionLoading === "remove-time" ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Clock className="h-3.5 w-3.5" />
-                      )
-                    }
-                    label="Remove time"
-                    disabled={actionLoading === "remove-time"}
-                    onClick={() =>
-                      handleRemoveTime(
-                        popover.slot.set!.id,
-                        popover.slot.set!.channel_id!
-                      )
-                    }
-                    className="text-orange-600 dark:text-orange-400"
-                  />
+                  {!readOnly && (
+                    <PopoverButton
+                      icon={
+                        actionLoading === "remove-time" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Clock className="h-3.5 w-3.5" />
+                        )
+                      }
+                      label="Remove time"
+                      disabled={actionLoading === "remove-time"}
+                      onClick={() =>
+                        handleRemoveTime(
+                          popover.slot.set!.id,
+                          popover.slot.set!.channel_id!
+                        )
+                      }
+                      className="text-orange-600 dark:text-orange-400"
+                    />
+                  )}
 
                   {/* Unassign channel + time */}
-                  <PopoverButton
-                    icon={
-                      actionLoading === "unassign" ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <X className="h-3.5 w-3.5" />
-                      )
-                    }
-                    label="Unassign channel & time"
-                    disabled={actionLoading === "unassign"}
-                    onClick={() => handleUnassign(popover.slot.set!.id)}
-                    className="text-red-600 dark:text-red-400"
-                  />
+                  {!readOnly && (
+                    <PopoverButton
+                      icon={
+                        actionLoading === "unassign" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <X className="h-3.5 w-3.5" />
+                        )
+                      }
+                      label="Unassign channel & time"
+                      disabled={actionLoading === "unassign"}
+                      onClick={() => handleUnassign(popover.slot.set!.id)}
+                      className="text-red-600 dark:text-red-400"
+                    />
+                  )}
                 </>
               )}
             </div>
@@ -574,16 +586,18 @@ export function AccountScheduleCard({ account, scheduledSets, onMutate }: Props)
         )}
       </div>
 
-      <AssignSetModal
-        open={assignSlot !== null}
-        slot={assignSlot}
-        account={localAccount}
-        onClose={() => setAssignSlot(null)}
-        onAssigned={() => {
-          setAssignSlot(null);
-          onMutate();
-        }}
-      />
+      {!readOnly && (
+        <AssignSetModal
+          open={assignSlot !== null}
+          slot={assignSlot}
+          account={localAccount}
+          onClose={() => setAssignSlot(null)}
+          onAssigned={() => {
+            setAssignSlot(null);
+            onMutate();
+          }}
+        />
+      )}
     </>
   );
 }

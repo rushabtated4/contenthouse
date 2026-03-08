@@ -125,12 +125,20 @@ RootLayout (src/app/layout.tsx)
 │       ├── HookImageGrid
 │       └── HookVideoGrid
 │
-└── /accounts → AccountList (accounts/account-list.tsx)
-    ├── Loading skeleton
-    ├── Empty state
-    └── AccountScheduleCard[] (accounts/account-schedule-card.tsx)
-        ├── ScheduleConfigEditor (accounts/schedule-config-editor.tsx)
-        └── AssignSetModal (accounts/assign-set-modal.tsx)
+├── /accounts → AccountList (accounts/account-list.tsx)
+│   ├── Loading skeleton
+│   ├── TodayPosts (accounts/today-posts.tsx)
+│   ├── PosterManagement (accounts/poster-management.tsx)
+│   ├── Empty state
+│   └── AccountScheduleCard[] (accounts/account-schedule-card.tsx)
+│       ├── ScheduleConfigEditor (accounts/schedule-config-editor.tsx)
+│       └── AssignSetModal (accounts/assign-set-modal.tsx)
+│
+├── /posting → PosterLoginPage (posting/page.tsx)  [poster login]
+├── /posting/layout.tsx → Minimal layout (no sidebar)
+└── /posting/[username] → PosterDashboardPage (posting/[username]/page.tsx)
+    └── PostingDashboard (posting/posting-dashboard.tsx)
+        └── AccountScheduleCard[] (readOnly mode)
 ```
 
 ---
@@ -457,14 +465,24 @@ Quick Actions card with 3 nav buttons (Generate, Calendar, Generated). Not curre
 ### AccountList
 **File:** `src/components/accounts/account-list.tsx`
 **Props:** none
-**Hook:** `useProjects()`
-Read-only list of project accounts grouped by project. Each project section has a color dot heading with account count. Renders `AccountScheduleCard` for each account. Loading skeleton and empty state.
+**Hook:** `useAccountOverview()`
+Read-only list of project accounts grouped by project. Shows `TodayPosts` section between summary bar and project cards. Includes `PosterManagement` section for admin poster CRUD. Each project section has a color dot heading with account count. Renders `AccountScheduleCard` for each account. Loading skeleton and empty state.
+
+### TodayPosts
+**File:** `src/components/accounts/today-posts.tsx`
+**Props:** `{ scheduledSets: ScheduledSetSummary[], allAccounts: ProjectAccount[], onMutate: () => void }`
+Filters scheduled sets for today's date where `posted_at` is null, sorted by time. Shows compact rows with thumbnail, title, channel name, time, download ZIP button, and mark-as-posted button. Empty state: "Nothing scheduled for today."
+
+### PosterManagement
+**File:** `src/components/accounts/poster-management.tsx`
+**Props:** none
+Admin UI for managing poster accounts. Create/delete posters and assign channels. Lists posters with their assigned channels. Channel assignment UI updates `poster_id` on `project_accounts` via `PUT /api/posters/[id]/channels`.
 
 ### AccountScheduleCard
 **File:** `src/components/accounts/account-schedule-card.tsx`
-**Props:** `{ account: ProjectAccount, scheduledSets: ScheduledSetSummary[], onMutate: () => void }`
+**Props:** `{ account: ProjectAccount, scheduledSets: ScheduledSetSummary[], onMutate: () => void, readOnly?: boolean }`
 **Hooks:** `computeWeekGrid()`, `computeSlots()`
-Expandable card per account with compact header (username, day-of-week pills, posts/day, empty slot warning). Expanded view shows a mini week-grid calendar with color-coded cells (green=posted, blue=scheduled, orange=empty). Click cells to open action popover (view post, download ZIP, mark as posted, unassign) or assign modal. Edit button opens `ScheduleConfigEditor` inline.
+Expandable card per account with compact header (username, day-of-week pills, posts/day, empty slot warning). Expanded view shows a mini week-grid calendar with color-coded cells (green=posted, blue=scheduled, orange=empty). Click cells to open action popover (view post, download ZIP, mark as posted, unassign) or assign modal. Edit button opens `ScheduleConfigEditor` inline. When `readOnly` is true, hides Edit, Assign, Remove time, and Unassign actions.
 
 ### ScheduleConfigEditor
 **File:** `src/components/accounts/schedule-config-editor.tsx`
@@ -649,6 +667,16 @@ Section to attach or remove a demo clip from the composition. Shows thumbnail an
 **File:** `src/components/hooks/editor/editor-actions.tsx`
 **Props:** `{ compositionId: string, isDirty: boolean, isRendering: boolean, onSave: () => void, onRender: () => void, onClose: () => void }`
 Action bar with Save (disabled when clean), Render (calls `POST /api/hooks/compositions/[id]/render`), and Close buttons. Render button shows spinner while rendering.
+
+---
+
+## Posting Portal Components
+
+### PostingDashboard
+**File:** `src/components/posting/posting-dashboard.tsx`
+**Props:** none
+**Hook:** `usePosterOverview()`
+Poster-facing dashboard showing readOnly schedule cards for the poster's assigned channels. Renders `AccountScheduleCard` in `readOnly` mode.
 
 ---
 

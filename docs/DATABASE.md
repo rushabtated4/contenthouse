@@ -19,6 +19,7 @@
 - `supabase/migrations/012_trimmed_clips.sql` — Add trimmed clip columns + `source_session_id` FK + `clip` source type to `hook_sessions`
 - `supabase/migrations/013_hook_session_stats.sql` — Add TikTok stats columns (`tiktok_play_count`, `tiktok_digg_count`, `tiktok_comment_count`, `tiktok_share_count`, `tiktok_collect_count`) to `hook_sessions`
 - `supabase/migrations/014_image_model_column.sql` — Add `model` column to `hook_generated_images`
+- `supabase/migrations/016_posters.sql` — Add `posters` table, add `poster_id` FK on `project_accounts`
 
 ---
 
@@ -82,6 +83,30 @@ TikTok channels used for post scheduling, grouped by project.
 | `added_at` | timestamptz | NO | `now()` | Record creation |
 | `days_of_week` | integer[] | YES | `'{1,2,3,4,5}'` | **Added (006).** JS `getDay()` convention: 0=Sun…6=Sat |
 | `posts_per_day` | integer | YES | `1` | **Added (006).** Number of posts per active day (1–5) |
+| `poster_id` | uuid | YES | — | **Added (016).** FK → `posters.id` (SET NULL on delete). Assigns channel to a poster. |
+
+**Indexes:**
+- PK on `id`
+- `idx_project_accounts_poster` on `poster_id`
+
+---
+
+### `posters` (new)
+
+Employee poster accounts for the Posting Portal. Each poster can be assigned channels and view a read-only schedule.
+
+| Column | Type | Nullable | Default | Description |
+|---|---|---|---|---|
+| `id` | uuid | NO | `gen_random_uuid()` | Primary key |
+| `username` | text | NO | — | Unique login username |
+| `password` | text | NO | — | Password (plain text, single-user tool) |
+| `display_name` | text | YES | — | Display name for UI |
+| `created_at` | timestamptz | NO | `now()` | Record creation |
+| `updated_at` | timestamptz | NO | `now()` | Last update |
+
+**Indexes:**
+- PK on `id`
+- Unique on `username`
 
 ---
 
@@ -319,6 +344,10 @@ Compositions combining a hook video with text overlays and an optional demo vide
 ## Relationships
 
 ```
+posters
+  │
+  └──< project_accounts.poster_id (SET NULL on delete)
+
 projects
   │
   └──< project_accounts.project_id

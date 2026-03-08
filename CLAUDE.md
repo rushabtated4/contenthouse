@@ -81,7 +81,8 @@ src/types/        — TypeScript type definitions
 |---|---|
 | `videos` | TikTok posts (14,706 rows). Added `original_images` text[] column. |
 | `projects` | Project groupings for organizing accounts. Has `name`, `color`. |
-| `project_accounts` | TikTok channels grouped by project. FK `project_id` → `projects`. Has `nickname`, `added_at`. |
+| `project_accounts` | TikTok channels grouped by project. FK `project_id` → `projects`. FK `poster_id` → `posters` (SET NULL). Has `nickname`, `added_at`. |
+| `posters` | Employee poster accounts for the Posting Portal. Has `username` (unique), `password`, `display_name`. |
 | `generation_sets` | Generation config, progress tracking, scheduling. `video_id` nullable (null for uploaded posts). Has `title` column. `editor_state` JSONB for saved canvas state. `status` includes `editor_draft`. `review_status`: `unverified` (default) / `ready_to_post`. |
 | `generated_images` | Individual AI-generated slide images |
 | `background_library` | Saved backgrounds for editor mode. `source`: generated/uploaded. FK `source_video_id` → `videos`. FK `folder_id` → `background_folders`. |
@@ -148,6 +149,10 @@ See `docs/DATABASE.md` for full schema.
 | `/api/hooks/compositions` | GET/POST | List/create hook compositions |
 | `/api/hooks/compositions/[id]` | GET/PATCH/DELETE | Get/update/delete a composition |
 | `/api/hooks/compositions/[id]/render` | POST | FFmpeg render: text burn-in + demo concat |
+| `/api/poster/login` | POST | Poster auth (sets ch_poster cookie) |
+| `/api/poster/channels` | GET | Get poster's assigned channels |
+| `/api/posters` | GET/POST/DELETE | Admin poster CRUD (list with channels, create, bulk delete) |
+| `/api/posters/[id]/channels` | PUT | Admin channel assignment for a poster |
 
 See `docs/API.md` for full request/response shapes.
 
@@ -169,7 +174,7 @@ NEXT_PUBLIC_APP_URL
 ## Supabase Config
 
 - Project ref: `gqtdvbvwvkncvfqtgnzp`
-- Migrations: `001_contenthouse_schema.sql`, `002_add_posted_at.sql`, `003_videos_carousel_index.sql`, `004_nullable_video_id.sql`, `005_add_projects_table.sql`, `006_account_posting_schedule.sql`, `007_background_library.sql`, `008_editor_state.sql`, `009_review_status.sql`, `010_hook_creator.sql`, `011_background_folders.sql`, `012_trimmed_clips.sql`, `013_hook_session_stats.sql`, `014_image_model_column.sql`, `015_hook_editor_foundation.sql`
+- Migrations: `001_contenthouse_schema.sql`, `002_add_posted_at.sql`, `003_videos_carousel_index.sql`, `004_nullable_video_id.sql`, `005_add_projects_table.sql`, `006_account_posting_schedule.sql`, `007_background_library.sql`, `008_editor_state.sql`, `009_review_status.sql`, `010_hook_creator.sql`, `011_background_folders.sql`, `012_trimmed_clips.sql`, `013_hook_session_stats.sql`, `014_image_model_column.sql`, `015_hook_editor_foundation.sql`, `016_posters.sql`
 - RLS: Permissive (single-user, no auth)
 
 ## Testing
